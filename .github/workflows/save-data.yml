@@ -1,0 +1,41 @@
+name: Save Data to Database
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  save-to-db:
+    if: contains(github.event.issue.labels.*.name, 'save-data')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract data from issue
+        id: extract
+        run: |
+          BODY="${{ github.event.issue.body }}"
+          echo "data=$BODY" >> $GITHUB_OUTPUT
+      
+      - name: Save to database.json
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          DATA='${{ steps.extract.outputs.data }}'
+          echo "$DATA" > database.json
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "bot@github.com"
+          git add database.json
+          git commit -m "Update database from issue #${{ github.event.issue.number }}"
+          git push
+      
+      - name: Close issue
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh issue close ${{ github.event.issue.number }} --comment "✅ Data berhasil disimpan!"
