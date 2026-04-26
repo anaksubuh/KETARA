@@ -1,35 +1,117 @@
-// ========== DAFTAR NIK VALID (EDIT DI SINI) ==========
-const DAFTAR_NIK_VALID = [
-    "1111111111111111",
-    "2222222222222222",
-    "3333333333333333"
-];
-
-// ========== DATA RIWAYAT (Tersimpan di Browser) ==========
+// ========== VARIABEL GLOBAL ==========
 let currentNik = '';
 let currentDataUser = null;
-let riwayatPenggunaan = {};
+let databaseData = null;
 
-// ========== LOAD DATA DARI BROWSER ==========
-function loadData() {
-    const saved = localStorage.getItem('polling_data');
-    if (saved) {
-        riwayatPenggunaan = JSON.parse(saved);
-        console.log('✅ Data dimuat dari browser');
+// ========== FUNGSI BACA DATABASE DARI GITHUB ==========
+async function loadDatabaseFromGitHub() {
+    try {
+        if (!GITHUB_TOKEN) {
+            promptToken();
+            if (!GITHUB_TOKEN) return null;
+        }
+
+        showMessage('📥 Memuat data dari server...', 'info');
+        
+        const response = await fetch(getGitHubApiUrl(), {
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                showMessage('❌ Token tidak valid! Masukkan token yang benar.', 'error');
+                sessionStorage.removeItem('github_token');
+                GITHUB_TOKEN = '';
+                promptToken();
+                return loadDatabaseFromGitHub();
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Decode content dari base64
+        const content = atob(data.content);
+        databaseData = JSON.parse(content);
+        
+        console.log('✅ Database loaded:', databaseData);
+        showMessage('✅ Data berhasil dimuat', 'success');
+        return databaseData;
+        
+    } catch (error) {
+        console.error('Error loading database:', error);
+        showMessage(`❌ Gagal memuat data: ${error.message}`, 'error');
+        
+        // Fallback ke default jika file tidak ada
+        if (!databaseData) {
+            databaseData = {
+                daftar_nik_valid: ["1111111111111111", "2222222222222222", "3333333333333333"],
+                riwayat_penggunaan: {}
+            };
+        }
+        return databaseData;
     }
 }
 
-// ========== SAVE DATA KE BROWSER ==========
-function saveData() {
-    localStorage.setItem('polling_data', JSON.stringify(riwayatPenggunaan));
-    console.log('✅ Data disimpan ke browser');
-    
-    // Tampilkan data untuk admin (copy ke database.json)
-    console.log('📦 COPY INI KE database.json:');
-    console.log(JSON.stringify({
-        daftar_nik_valid: DAFTAR_NIK_VALID,
-        riwayat_penggunaan: riwayatPenggunaan
-    }, null, 2));
+// ========== FUNGSI SIMPAN DATABASE KE GITHUB ==========
+async function saveDatabaseToGitHub() {
+    try {
+        if (!GITHUB_TOKEN) {
+            promptToken();
+            if (!GITHUB_TOKEN) return false;
+        }
+
+        showMessage('💾 Menyimpan data ke server...', 'info');
+        
+        // Dapatkan SHA file terbaru
+        const getResponse = await fetch(getGitHubApiUrl(), {
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        let sha = null;
+        if (getResponse.ok) {
+            const data = await getResponse.json();
+            sha = data.sha;
+        }
+
+        // Encode content ke base64
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(databaseData, null, 2))));
+        
+        // Upload file
+        const uploadResponse = await fetch(getGitHubApiUrl(), {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Update database - ${new Date().toLocaleString('id-ID')}`,
+                content: content,
+                sha: sha,
+                branch: GITHUB_CONFIG.branch
+            })
+        });
+
+        if (!uploadResponse.ok) {
+            throw new Error(`HTTP ${uploadResponse.status}`);
+        }
+
+        console.log('✅ Database saved to GitHub');
+        showMessage('✅ Data berhasil disimpan ke server!', 'success');
+        return true;
+        
+    } catch (error) {
+        console.error('Error saving database:', error);
+        showMessage(`❌ Gagal menyimpan data: ${error.message}`, 'error');
+        return false;
+    }
 }
 
 // ========== CEK NIK ==========
@@ -51,8 +133,13 @@ async function cekNik() {
         return;
     }
     
+    // Load database dulu
+    if (!databaseData) {
+        await loadDatabaseFromGitHub();
+    }
+    
     // CEK APAKAH NIK VALID
-    if (!DAFTAR_NIK_VALID.includes(nik)) {
+    if (!databaseData.daftar_nik_valid.includes(nik)) {
         showMessage(`❌ NIK ${nik} tidak terdaftar!`, 'error');
         return;
     }
@@ -60,27 +147,27 @@ async function cekNik() {
     const tahunIni = new Date().getFullYear();
     
     // Inisialisasi jika belum ada
-    if (!riwayatPenggunaan[nik]) {
-        riwayatPenggunaan[nik] = {
+    if (!databaseData.riwayat_penggunaan[nik]) {
+        databaseData.riwayat_penggunaan[nik] = {
             total: 0,
             lastReset: tahunIni,
             history: []
         };
-        saveData();
+        await saveDatabaseToGitHub();
     }
     
     // Reset jika tahun berganti
-    if (riwayatPenggunaan[nik].lastReset !== tahunIni) {
-        riwayatPenggunaan[nik].total = 0;
-        riwayatPenggunaan[nik].lastReset = tahunIni;
-        saveData();
+    if (databaseData.riwayat_penggunaan[nik].lastReset !== tahunIni) {
+        databaseData.riwayat_penggunaan[nik].total = 0;
+        databaseData.riwayat_penggunaan[nik].lastReset = tahunIni;
+        await saveDatabaseToGitHub();
     }
     
-    const sudahPakai = riwayatPenggunaan[nik].total;
+    const sudahPakai = databaseData.riwayat_penggunaan[nik].total;
     const sisaKuota = 10 - sudahPakai;
     
     currentNik = nik;
-    currentDataUser = riwayatPenggunaan[nik];
+    currentDataUser = databaseData.riwayat_penggunaan[nik];
     
     document.getElementById('displayNik').innerText = nik;
     document.getElementById('sisaKuota').innerText = sisaKuota;
@@ -133,16 +220,18 @@ async function kirimPolling() {
         return;
     }
     
-    const jawaban = `📊 HASIL POLLING
-
-1. Bantuan Sosial: ${p1.value}
-2. Tarif Air: ${p2.value}
-3. PKL: ${p3.value}
-4. Kelurahan Cantik: ${p4.value}
-5. APBD 2026: ${p5.value}
-
-Waktu: ${new Date().toLocaleString('id-ID')}
-NIK: ${currentNik}`;
+    const jawaban = {
+        type: 'polling',
+        data: {
+            kebijakan1: p1.value,
+            kebijakan2: p2.value,
+            kebijakan3: p3.value,
+            kebijakan4: p4.value,
+            kebijakan5: p5.value
+        },
+        timestamp: new Date().toISOString(),
+        nik: currentNik
+    };
     
     await simpanTransaksi(jawaban);
 }
@@ -161,61 +250,60 @@ async function kirimAspirasi() {
         return;
     }
     
-    const jawaban = `💬 ASPIRASI
-
-${teks}
-
-Waktu: ${new Date().toLocaleString('id-ID')}
-NIK: ${currentNik}`;
+    const jawaban = {
+        type: 'aspirasi',
+        data: teks,
+        timestamp: new Date().toISOString(),
+        nik: currentNik
+    };
     
     await simpanTransaksi(jawaban);
 }
 
 // ========== SIMPAN TRANSAKSI ==========
-async function simpanTransaksi(keterangan) {
-    showMessage('⏳ Menyimpan data...', 'info');
-    
+async function simpanTransaksi(data) {
     const tahunIni = new Date().getFullYear();
     
-    if (!riwayatPenggunaan[currentNik]) {
-        riwayatPenggunaan[currentNik] = { total: 0, lastReset: tahunIni, history: [] };
+    if (!databaseData.riwayat_penggunaan[currentNik]) {
+        databaseData.riwayat_penggunaan[currentNik] = { total: 0, lastReset: tahunIni, history: [] };
     }
     
-    if (riwayatPenggunaan[currentNik].total >= 10) {
+    if (databaseData.riwayat_penggunaan[currentNik].total >= 10) {
         showMessage('❌ Kuota habis!', 'error');
         batal();
         return;
     }
     
-    riwayatPenggunaan[currentNik].total += 1;
-    riwayatPenggunaan[currentNik].history.push({
-        tanggal: new Date().toISOString(),
-        keterangan: keterangan
-    });
+    // Tambah ke history
+    databaseData.riwayat_penggunaan[currentNik].total += 1;
+    databaseData.riwayat_penggunaan[currentNik].history.push(data);
     
-    saveData();
+    // Simpan ke GitHub
+    const saved = await saveDatabaseToGitHub();
     
-    const sisa = 10 - riwayatPenggunaan[currentNik].total;
-    showMessage(`✅ Berhasil! Sisa kuota: ${sisa} dari 10`, 'success');
-    
-    document.getElementById('sisaKuota').innerText = sisa;
-    document.getElementById('sudahDigunakan').innerText = riwayatPenggunaan[currentNik].total;
-    
-    batal();
-    
-    if (sisa <= 0) {
-        document.getElementById('btnPolling').disabled = true;
-        document.getElementById('btnAspirasi').disabled = true;
-    }
-    
-    setTimeout(() => {
-        if (confirm('✅ Data tersimpan! Ingin cek NIK lain?')) {
-            document.getElementById('nik').value = '';
-            document.getElementById('infoPanel').classList.add('hidden');
-            currentNik = '';
-            currentDataUser = null;
+    if (saved) {
+        const sisa = 10 - databaseData.riwayat_penggunaan[currentNik].total;
+        showMessage(`✅ Berhasil! Sisa kuota: ${sisa} dari 10`, 'success');
+        
+        document.getElementById('sisaKuota').innerText = sisa;
+        document.getElementById('sudahDigunakan').innerText = databaseData.riwayat_penggunaan[currentNik].total;
+        
+        batal();
+        
+        if (sisa <= 0) {
+            document.getElementById('btnPolling').disabled = true;
+            document.getElementById('btnAspirasi').disabled = true;
         }
-    }, 500);
+        
+        setTimeout(() => {
+            if (confirm('✅ Data tersimpan! Ingin cek NIK lain?')) {
+                document.getElementById('nik').value = '';
+                document.getElementById('infoPanel').classList.add('hidden');
+                currentNik = '';
+                currentDataUser = null;
+            }
+        }, 500);
+    }
 }
 
 function batal() {
@@ -232,47 +320,27 @@ function showMessage(msg, type) {
     if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 5000);
 }
 
-// ========== EXPORT DATA (UNTUK ADMIN) ==========
-function exportData() {
-    const data = {
-        daftar_nik_valid: DAFTAR_NIK_VALID,
-        riwayat_penggunaan: riwayatPenggunaan
-    };
-    
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `database_${new Date().toISOString().slice(0,19)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    showMessage('✅ Data diekspor! File JSON sudah di-download.', 'success');
-}
-
-function tambahTombolExport() {
-    const container = document.querySelector('.container');
-    if (container && !document.getElementById('exportBtn')) {
-        const btn = document.createElement('button');
-        btn.id = 'exportBtn';
-        btn.innerHTML = '📤 Export Data (Admin)';
-        btn.onclick = exportData;
-        btn.style.cssText = 'background: #6c757d; color: white; margin-top: 20px; width: 100%;';
-        container.appendChild(btn);
-    }
+// ========== TAMPILKAN DATA UNTUK ADMIN ==========
+function lihatDataAdmin() {
+    console.log('📊 DATABASE:', databaseData);
+    alert('Cek console (F12) untuk melihat data lengkap');
 }
 
 // ========== INIT ==========
-loadData();
-tambahTombolExport();
-
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Load database saat pertama kali
+    await loadDatabaseFromGitHub();
+    
     document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
     console.log('🚀 Website siap!');
-    console.log('📋 Daftar NIK:', DAFTAR_NIK_VALID);
+    console.log('📋 Daftar NIK:', databaseData?.daftar_nik_valid);
 });
 
-window.lihatData = function() {
-    console.log('📊 NIK:', DAFTAR_NIK_VALID);
-    console.log('📝 Riwayat:', riwayatPenggunaan);
-};
+// Export ke window untuk debugging
+window.lihatData = lihatDataAdmin;
+window.cekNik = cekNik;
+window.tampilFormPolling = tampilFormPolling;
+window.tampilFormAspirasi = tampilFormAspirasi;
+window.kirimPolling = kirimPolling;
+window.kirimAspirasi = kirimAspirasi;
+window.batal = batal;
