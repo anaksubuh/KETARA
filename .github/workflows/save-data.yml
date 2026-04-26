@@ -15,22 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Get issue body
+        id: get_body
+        run: |
+          BODY=$(cat "${{ github.event.issue.body }}")
+          echo "body=$BODY" >> $GITHUB_OUTPUT
+      
       - name: Save to database.json
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Ambil data dari issue body
-          BODY="${{ github.event.issue.body }}"
-          echo "$BODY" > database.json
+          # Gunakan GITHUB_TOKEN (bukan GH_TOKEN) karena ini token bawaan GitHub
+          echo '${{ steps.get_body.outputs.body }}' > database.json
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add database.json
-          git commit -m "Update database from issue #${{ github.event.issue.number }}"
+          git commit -m "Update database from issue #${{ github.event.issue.number }}" || echo "No changes"
           git push
       
       - name: Close issue
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue close ${{ github.event.issue.number }} --comment "✅ Data berhasil disimpan!"
