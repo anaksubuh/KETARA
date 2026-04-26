@@ -104,7 +104,7 @@ if 'submitted' not in st.session_state:
 
 st.markdown("""
 <div class="hero-user">
-    <h1>🏙️ Partisipasi Warga Kota Magelang</h1>
+    <h1>🏙️ Sugeng Rawuh Warga Kota Magelang</h1>
     <p>Sampaikan pendapat dan aspirasi Anda untuk kemajuan bersama</p>
 </div>
 """, unsafe_allow_html=True)
