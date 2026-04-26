@@ -265,7 +265,7 @@ class GitHubAPI:
         
         return self._save_file(self.users_file, data, file_data['sha'])
     
-    # ========== MANAJEMEN SETTINGS (DITAMBAHKAN) ==========
+    # ========== MANAJEMEN SETTINGS ==========
     
     def get_settings(self) -> Dict:
         """Mendapatkan pengaturan sistem"""

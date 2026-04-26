@@ -99,20 +99,22 @@ def logout():
     st.rerun()
 
 def require_auth():
-    if not st.session_state.get('logged_in', False):
-        if not check_token_from_url():
-            st.warning("⚠️ Silakan login terlebih dahulu")
-            st.stop()
+    if st.session_state.get('logged_in', False):
+        if st.session_state.expiry_time:
+            if datetime.now() < st.session_state.expiry_time:
+                return
+            else:
+                logout()
+                st.warning("⏰ Session telah berakhir. Silakan login kembali.")
+                st.stop()
+    
+    if not check_token_from_url():
+        st.warning("⚠️ Silakan login terlebih dahulu")
+        st.stop()
     
     if st.session_state.get('role') != 'admin':
         st.error("❌ Anda tidak memiliki akses ke halaman ini")
         st.stop()
-    
-    if st.session_state.expiry_time:
-        if datetime.now() > st.session_state.expiry_time:
-            logout()
-            st.warning("⏰ Session telah berakhir. Silakan login kembali.")
-            st.stop()
 
 def get_remaining_time():
     if st.session_state.expiry_time:
