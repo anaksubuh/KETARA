@@ -213,40 +213,57 @@ else:
             """, unsafe_allow_html=True)
             
             # Tombol aksi
+            # Tombol aksi - PERBAIKAN UNTUK HAPUS SOAL
             col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-            
+
             with col1:
                 if st.button(f"✏️ Edit", key=f"edit_{q['id']}", use_container_width=True):
                     st.session_state[f"editing_{q['id']}"] = True
-            
+
             with col2:
                 if q.get('is_active', True):
                     if st.button(f"🔴 Nonaktifkan", key=f"deact_{q['id']}", use_container_width=True):
                         if github.toggle_question_active(q['id']):
-                            st.success(f"Soal {q['question'][:30]}... dinonaktifkan")
+                            st.success(f"Soal dinonaktifkan")
                             st.rerun()
+                        else:
+                            st.error("Gagal menonaktifkan soal")
                 else:
                     if st.button(f"🟢 Aktifkan", key=f"act_{q['id']}", use_container_width=True):
                         if github.toggle_question_active(q['id']):
-                            st.success(f"Soal {q['question'][:30]}... diaktifkan")
+                            st.success(f"Soal diaktifkan")
                             st.rerun()
-            
+                        else:
+                            st.error("Gagal mengaktifkan soal")
+
             with col3:
                 if st.button(f"📊 Statistik", key=f"stats_{q['id']}", use_container_width=True):
                     st.session_state[f"stats_{q['id']}"] = True
-            
+
             with col4:
                 if st.button(f"🗑️ Hapus", key=f"del_{q['id']}", use_container_width=True):
-                    st.warning(f"⚠️ Yakin hapus soal: {q['question'][:50]}?")
-                    col_yes, col_no = st.columns(2)
-                    with col_yes:
-                        if st.button("✅ Ya, Hapus", key=f"confirm_del_{q['id']}"):
-                            if github.delete_question(q['id']):
-                                st.success("Soal berhasil dihapus")
-                                st.rerun()
-                    with col_no:
-                        if st.button("❌ Batal", key=f"cancel_del_{q['id']}"):
+                    st.session_state[f"confirm_del_{q['id']}"] = True
+
+            # Konfirmasi Hapus - DIPISAH AGAR TIDAK BENTROK
+            if st.session_state.get(f"confirm_del_{q['id']}", False):
+                st.warning(f"⚠️ **Yakin ingin menghapus soal ini?**")
+                st.write(f"**Soal:** {q['question'][:100]}")
+                st.write("⚠️ Tindakan ini tidak dapat dibatalkan!")
+                
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("✅ Ya, Hapus Permanen", key=f"confirm_yes_{q['id']}", use_container_width=True):
+                        if github.delete_question(q['id']):
+                            st.success("✅ Soal berhasil dihapus!")
+                            # Hapus state konfirmasi
+                            del st.session_state[f"confirm_del_{q['id']}"]
                             st.rerun()
+                        else:
+                            st.error("❌ Gagal menghapus soal")
+                with col_no:
+                    if st.button("❌ Batal", key=f"confirm_no_{q['id']}", use_container_width=True):
+                        del st.session_state[f"confirm_del_{q['id']}"]
+                        st.rerun()
             
             # Form Edit
             if st.session_state.get(f"editing_{q['id']}", False):
