@@ -4,27 +4,16 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Gunakan auth_simple
-from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time, ensure_token_in_url
+from modules.auth_simple import init_session_state, check_token_from_url, login
 
-# Inisialisasi
-init_session_state()
-
-# Pastikan token di URL sebelum cek auth
-ensure_token_in_url()
-
-# Cek autentikasi
-check_token_from_url()
-require_auth()
-
-# Konfigurasi halaman
+# Konfigurasi halaman - HARUS PERTAMA
 st.set_page_config(
     page_title="Login Admin",
     page_icon="🔐",
     layout="centered"
 )
 
-# Inisialisasi session
+# Inisialisasi
 init_session_state()
 check_token_from_url()
 
@@ -81,7 +70,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Tampilkan halaman login
 st.markdown("""
 <div class="login-container">
     <div class="login-card">
@@ -93,10 +81,9 @@ st.markdown("""
             </div>
 """, unsafe_allow_html=True)
 
-# Form Login
 with st.form("login_form"):
-    username = st.text_input("Username", placeholder="admin", key="login_user")
-    password = st.text_input("Password", type="password", placeholder="admin123", key="login_pass")
+    username = st.text_input("Username", placeholder="admin")
+    password = st.text_input("Password", type="password", placeholder="admin123")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -117,16 +104,12 @@ if submitted:
     else:
         st.warning("Harap isi username dan password")
 
-# Info credentials
-st.markdown(f"""
+st.markdown("""
 <div class="credential-box">
     <strong>🔑 Credentials Default</strong><br>
     Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin</code><br>
     Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin123</code>
 </div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
         </div>
     </div>
 </div>
