@@ -1,60 +1,12 @@
-// ========== KONFIGURASI ==========
-const REPO_OWNER = 'anaksubuh';  // Ganti dengan username GitHub Anda
-const REPO_NAME = 'KETARA.github.io';  // Ganti dengan nama repository Anda
+// ========== SISTEM ASPIRASI & POLLING KOTA MAGELANG ==========
+// Database: Google Sheets (via Webhook)
+// Hosting: GitHub Pages
 
-// Data akan disimpan via membuat Issue (tidak perlu token user!)
 let currentNik = '';
-let currentDataUser = null;
-let daftarNIKValid = [];
+let currentSisaKuota = 0;
+let currentSudahPakai = 0;
 
-// ========== LOAD DAFTAR NIK (dari file raw GitHub) ==========
-async function loadDaftarNIK() {
-    try {
-        // Baca database.json dari raw GitHub (public, tanpa token)
-        const response = await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/database.json`);
-        
-        if (!response.ok) {
-            throw new Error('Database belum tersedia');
-        }
-        
-        const data = await response.json();
-        daftarNIKValid = data.daftar_nik_valid || [];
-        
-        // Load juga riwayat penggunaan untuk cek kuota
-        const riwayat = data.riwayat_penggunaan || {};
-        
-        // Simpan ke localStorage untuk sementara
-        localStorage.setItem('riwayat_penggunaan', JSON.stringify(riwayat));
-        
-        console.log('✅ Daftar NIK dimuat:', daftarNIKValid);
-        return true;
-    } catch (error) {
-        console.error('Gagal load database:', error);
-        // Fallback ke default
-        daftarNIKValid = ["1111111111111111", "2222222222222222", "3333333333333333"];
-        return false;
-    }
-}
-
-// ========== CEK KUOTA DARI LOCALSTORAGE ==========
-function cekKuota(nik) {
-    const riwayat = JSON.parse(localStorage.getItem('riwayat_penggunaan') || '{}');
-    const tahunIni = new Date().getFullYear();
-    
-    if (!riwayat[nik]) {
-        return { sisa: 10, sudah: 0, perluReset: false };
-    }
-    
-    // Reset jika tahun berganti
-    if (riwayat[nik].lastReset !== tahunIni) {
-        return { sisa: 10, sudah: 0, perluReset: true };
-    }
-    
-    const sudah = riwayat[nik].total || 0;
-    return { sisa: 10 - sudah, sudah: sudah, perluReset: false };
-}
-
-// ========== CEK NIK ==========
+// ========== CEK NIK KE GOOGLE SHEETS ==========
 async function cekNik() {
     const nik = document.getElementById('nik').value.trim();
     
@@ -73,88 +25,82 @@ async function cekNik() {
         return;
     }
     
-    // Pastikan daftar NIK sudah dimuat
-    if (daftarNIKValid.length === 0) {
-        await loadDaftarNIK();
-    }
-    
-    // CEK APAKAH NIK VALID
-    if (!daftarNIKValid.includes(nik)) {
-        showMessage(`❌ NIK ${nik} tidak terdaftar! Silakan hubungi admin.`, 'error');
-        return;
-    }
-    
-    const kuota = cekKuota(nik);
-    
-    currentNik = nik;
-    
-    document.getElementById('displayNik').innerText = nik;
-    document.getElementById('sisaKuota').innerText = kuota.sisa;
-    document.getElementById('sudahDigunakan').innerText = kuota.sudah;
-    
-    if (kuota.sisa <= 0) {
-        document.getElementById('btnPolling').disabled = true;
-        document.getElementById('btnAspirasi').disabled = true;
-        showMessage(`⚠️ Kuota habis! Sudah ${kuota.sudah} kali.`, 'error');
-    } else {
-        document.getElementById('btnPolling').disabled = false;
-        document.getElementById('btnAspirasi').disabled = false;
-        showMessage(`✅ Selamat datang! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
-    }
-    
-    document.getElementById('infoPanel').classList.remove('hidden');
-}
-
-// ========== KIRIM DATA VIA GITHUB ISSUES ==========
-async function kirimKeGitHub(title, body) {
-    showMessage('⏳ Mengirim data...', 'info');
-    
-    // Buat issue baru di repository
-    const issueData = {
-        title: title,
-        body: body,
-        labels: ['save-data']  // Label ini akan trigger GitHub Actions
-    };
+    showMessage('⏳ Memverifikasi NIK...', 'info');
     
     try {
-        // Gunakan API tanpa auth untuk create issue? TIDAK BISA.
-        // Kita perlu cara lain: redirect ke form issue GitHub?
+        // Cek NIK ke Google Sheets
+        const response = await fetch(GOOGLE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'cek_nik',
+                nik: nik
+            })
+        });
         
-        // === SOLUSI: Buka halaman new issue di GitHub ===
-        const issueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=save-data`;
+        const result = await response.json();
         
-        // Buka di tab baru
-        window.open(issueUrl, '_blank');
+        if (!result.valid) {
+            showMessage(`❌ NIK ${nik} tidak terdaftar! Hubungi admin.`, 'error');
+            return;
+        }
         
-        showMessage(
-            '📝 Akan terbuka halaman GitHub. Silakan klik "Submit new issue" untuk menyimpan data.\n\n' +
-            '⚠️ Anda perlu login GitHub untuk mengirim aspirasi.\n\n' +
-            'Atau hubungi admin jika tidak punya akun GitHub.',
-            'info'
-        );
+        // Ambil kuota
+        const kuotaResponse = await fetch(GOOGLE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'get_kuota',
+                nik: nik
+            })
+        });
         
-        // Simpan ke localStorage dulu sebagai cache
-        simpanKeLocalCache(currentNik, body);
+        const kuota = await kuotaResponse.json();
         
-        return true;
+        currentNik = nik;
+        currentSisaKuota = kuota.sisa;
+        currentSudahPakai = kuota.total;
+        
+        document.getElementById('displayNik').innerText = nik;
+        document.getElementById('sisaKuota').innerText = kuota.sisa;
+        document.getElementById('sudahDigunakan').innerText = kuota.total;
+        document.getElementById('infoPanel').classList.remove('hidden');
+        
+        if (kuota.sisa <= 0) {
+            document.getElementById('btnPolling').disabled = true;
+            document.getElementById('btnAspirasi').disabled = true;
+            showMessage(`⚠️ Kuota habis! Sudah ${kuota.total} kali.`, 'error');
+        } else {
+            document.getElementById('btnPolling').disabled = false;
+            document.getElementById('btnAspirasi').disabled = false;
+            showMessage(`✅ Selamat datang ${nik}! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
+        }
         
     } catch (error) {
         console.error('Error:', error);
-        showMessage('❌ Gagal membuka halaman GitHub', 'error');
-        return false;
+        showMessage('❌ Gagal koneksi ke server! Coba lagi.', 'error');
     }
 }
 
-// ========== SIMPAN KE LOCAL CACHE ==========
-function simpanKeLocalCache(nik, data) {
-    const cache = JSON.parse(localStorage.getItem('pending_submissions') || '[]');
-    cache.push({
-        nik: nik,
-        data: data,
-        timestamp: new Date().toISOString()
-    });
-    localStorage.setItem('pending_submissions', JSON.stringify(cache));
-    console.log('📦 Data disimpan di cache lokal');
+// ========== TAMPIL FORM ==========
+function tampilFormPolling() {
+    if (currentSisaKuota <= 0) {
+        showMessage('❌ Kuota habis!', 'error');
+        return;
+    }
+    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    document.getElementById('pollingPanel').classList.remove('hidden');
+    document.getElementById('aspirasiPanel').classList.add('hidden');
+}
+
+function tampilFormAspirasi() {
+    if (currentSisaKuota <= 0) {
+        showMessage('❌ Kuota habis!', 'error');
+        return;
+    }
+    document.getElementById('aspirasiText').value = '';
+    document.getElementById('aspirasiPanel').classList.remove('hidden');
+    document.getElementById('pollingPanel').classList.add('hidden');
 }
 
 // ========== KIRIM POLLING ==========
@@ -170,28 +116,47 @@ async function kirimPolling() {
         return;
     }
     
-    const title = `POLLING: NIK ${currentNik}`;
-    const body = `📊 **HASIL POLLING**
-
-| Kebijakan | Pendapat |
-|-----------|----------|
-| Bantuan Sosial | ${p1.value} |
-| Tarif Air | ${p2.value} |
-| PKL | ${p3.value} |
-| Kelurahan Cantik | ${p4.value} |
-| APBD 2026 | ${p5.value} |
-
----
-**NIK:** ${currentNik}  
-**Waktu:** ${new Date().toLocaleString('id-ID')}  
-**User Agent:** ${navigator.userAgent.substring(0, 100)}`;
+    showMessage('⏳ Menyimpan polling...', 'info');
     
-    await kirimKeGitHub(title, body);
-    
-    // Update kuota lokal
-    updateKuotaLokal();
-    
-    batal();
+    try {
+        const response = await fetch(GOOGLE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'simpan_polling',
+                nik: currentNik,
+                kebijakan1: p1.value,
+                kebijakan2: p2.value,
+                kebijakan3: p3.value,
+                kebijakan4: p4.value,
+                kebijakan5: p5.value
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            currentSisaKuota = result.sisa_kuota;
+            currentSudahPakai = 10 - result.sisa_kuota;
+            
+            document.getElementById('sisaKuota').innerText = currentSisaKuota;
+            document.getElementById('sudahDigunakan').innerText = currentSudahPakai;
+            
+            showMessage(`✅ Polling berhasil disimpan! Sisa kuota: ${currentSisaKuota} dari 10`, 'success');
+            batal();
+            
+            if (currentSisaKuota <= 0) {
+                document.getElementById('btnPolling').disabled = true;
+                document.getElementById('btnAspirasi').disabled = true;
+            }
+        } else {
+            showMessage('❌ Gagal menyimpan polling!', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('❌ Gagal koneksi ke server!', 'error');
+    }
 }
 
 // ========== KIRIM ASPIRASI ==========
@@ -208,66 +173,43 @@ async function kirimAspirasi() {
         return;
     }
     
-    const title = `ASPIRASI: NIK ${currentNik}`;
-    const body = `💬 **ASPIRASI MASYARAKAT**
-
-${teks}
-
----
-**NIK:** ${currentNik}  
-**Waktu:** ${new Date().toLocaleString('id-ID')}`;
+    showMessage('⏳ Menyimpan aspirasi...', 'info');
     
-    await kirimKeGitHub(title, body);
-    
-    // Update kuota lokal
-    updateKuotaLokal();
-    
-    batal();
-}
-
-// ========== UPDATE KUOTA LOKAL ==========
-function updateKuotaLokal() {
-    const riwayat = JSON.parse(localStorage.getItem('riwayat_penggunaan') || '{}');
-    const tahunIni = new Date().getFullYear();
-    
-    if (!riwayat[currentNik]) {
-        riwayat[currentNik] = { total: 0, lastReset: tahunIni };
+    try {
+        const response = await fetch(GOOGLE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'simpan_aspirasi',
+                nik: currentNik,
+                aspirasi: teks
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            currentSisaKuota = result.sisa_kuota;
+            currentSudahPakai = 10 - result.sisa_kuota;
+            
+            document.getElementById('sisaKuota').innerText = currentSisaKuota;
+            document.getElementById('sudahDigunakan').innerText = currentSudahPakai;
+            
+            showMessage(`✅ Aspirasi berhasil disimpan! Sisa kuota: ${currentSisaKuota} dari 10`, 'success');
+            batal();
+            
+            if (currentSisaKuota <= 0) {
+                document.getElementById('btnPolling').disabled = true;
+                document.getElementById('btnAspirasi').disabled = true;
+            }
+        } else {
+            showMessage('❌ Gagal menyimpan aspirasi!', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('❌ Gagal koneksi ke server!', 'error');
     }
-    
-    riwayat[currentNik].total += 1;
-    localStorage.setItem('riwayat_penggunaan', JSON.stringify(riwayat));
-    
-    const sisa = 10 - riwayat[currentNik].total;
-    document.getElementById('sisaKuota').innerText = sisa;
-    document.getElementById('sudahDigunakan').innerText = riwayat[currentNik].total;
-    
-    if (sisa <= 0) {
-        document.getElementById('btnPolling').disabled = true;
-        document.getElementById('btnAspirasi').disabled = true;
-    }
-}
-
-// ========== FUNGSI LAINNYA ==========
-function tampilFormPolling() {
-    const kuota = cekKuota(currentNik);
-    if (kuota.sisa <= 0) {
-        showMessage('❌ Kuota habis!', 'error');
-        return;
-    }
-    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
-    document.getElementById('pollingPanel').classList.remove('hidden');
-    document.getElementById('aspirasiPanel').classList.add('hidden');
-}
-
-function tampilFormAspirasi() {
-    const kuota = cekKuota(currentNik);
-    if (kuota.sisa <= 0) {
-        showMessage('❌ Kuota habis!', 'error');
-        return;
-    }
-    document.getElementById('aspirasiText').value = '';
-    document.getElementById('aspirasiPanel').classList.remove('hidden');
-    document.getElementById('pollingPanel').classList.add('hidden');
 }
 
 function batal() {
@@ -281,20 +223,11 @@ function showMessage(msg, type) {
     const colors = { success: '#d4edda', error: '#f8d7da', info: '#d1ecf1' };
     const msgDiv = document.getElementById('message');
     msgDiv.innerHTML = `<div style="background:${colors[type]}; padding:12px; border-radius:8px; white-space:pre-line;">${msg}</div>`;
-    if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 8000);
+    if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 5000);
 }
 
 // ========== INIT ==========
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadDaftarNIK();
-    
+document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
-    console.log('🚀 Website siap!');
-    console.log('📋 Jumlah NIK terdaftar:', daftarNIKValid.length);
+    console.log('🚀 Website Aspirasi Kota Magelang siap!');
 });
-
-// Debug
-window.lihatData = function() {
-    console.log('Daftar NIK:', daftarNIKValid);
-    console.log('Riwayat:', JSON.parse(localStorage.getItem('riwayat_penggunaan') || '{}'));
-};

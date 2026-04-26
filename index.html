@@ -11,15 +11,13 @@
         <h1>📢 Sistem Aspirasi & Polling Warga</h1>
         <h2 class="subtitle">Kota Magelang</h2>
         
-        <!-- STEP 1: Input NIK -->
         <div class="card" id="stepNik">
             <h2>Langkah 1: Verifikasi NIK</h2>
             <label for="nik">Masukkan NIK (16 digit):</label>
             <input type="text" id="nik" maxlength="16" placeholder="Contoh: 1111111111111111">
-            <button id="btnCek" onclick="cekNik()">✔️ Cek NIK</button>
+            <button onclick="cekNik()">✔️ Cek NIK</button>
         </div>
 
-        <!-- STEP 2: Info & Pilihan -->
         <div id="infoPanel" class="panel hidden">
             <h2>Langkah 2: Pilih Tindakan</h2>
             <div class="info-box">
@@ -29,12 +27,12 @@
             </div>
             
             <div class="action-buttons">
-                <button id="btnPolling" onclick="tampilFormPolling()" class="btn-polling">🗳️ Polling Kebijakan</button>
-                <button id="btnAspirasi" onclick="tampilFormAspirasi()" class="btn-aspirasi">💬 Aspirasi Umum</button>
+                <button onclick="tampilFormPolling()" class="btn-polling">🗳️ Polling Kebijakan</button>
+                <button onclick="tampilFormAspirasi()" class="btn-aspirasi">💬 Aspirasi Umum</button>
             </div>
         </div>
 
-        <!-- STEP 3A: Form Polling -->
+        <!-- Form Polling (sama seperti sebelumnya, tidak berubah) -->
         <div id="pollingPanel" class="form-panel hidden">
             <h3>🗳️ Polling Pendapat atas Kebijakan Kota Magelang</h3>
             <p class="instruction">Pilih pendapat Anda untuk setiap kebijakan:</p>
@@ -109,7 +107,6 @@
             </div>
         </div>
 
-        <!-- STEP 3B: Form Aspirasi -->
         <div id="aspirasiPanel" class="form-panel hidden">
             <h3>💬 Form Aspirasi Umum</h3>
             <p>Sampaikan aspirasi, saran, atau masukan Anda:</p>
