@@ -65,14 +65,3 @@ if submitted:
             st.error(message)
     else:
         st.warning("Harap isi username dan password")
-
-st.markdown("""
-            <div style="background: #f0f8ff; padding: 10px; border-radius: 10px; margin-top: 15px; text-align: center;">
-                <small><strong>🔑 Info Login</strong><br>
-                Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">hahahihi</code><br>
-                Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">mungedan123#</code></small>
-            </div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
