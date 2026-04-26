@@ -183,8 +183,10 @@ if __name__ == "__main__":
     print("3. Buat .gitignore lalu upload")
     print("4. Upload semua file termasuk database")
     
-    choice = input("\nPilih metode (1/2/3/4): ").strip()
     
+    upload_to_github()
+
+    '''
     if choice == "1":
         upload_to_github()
     elif choice == "2":
@@ -200,3 +202,4 @@ if __name__ == "__main__":
             upload_to_github()
     else:
         print_color("Pilihan tidak valid!", Colors.RED)
+    '''

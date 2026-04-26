@@ -43,18 +43,6 @@ if st.session_state.get('logged_in', False):
         st.switch_page("pages/admin_dashboard.py")
     st.stop()
 
-# TAMPILAN LOGIN COMPACT (TIDAK PERLU SCROLL)
-st.markdown("""
-<div style="display: flex; justify-content: center; align-items: center; min-height: 20vh;">
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 20px; max-width: 400px; width: 100%;">
-        <div style="background: white; padding: 25px; border-radius: 15px;">
-            <div style="text-align: center;">
-                <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
-                <h2 style="color: #667eea; margin-bottom: 5px;">Admin Login</h2>
-                <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Masukkan username dan password</p>
-            </div>
-""", unsafe_allow_html=True)
-
 with st.form("login_form"):
     username = st.text_input("Username", placeholder="hahahihi", key="login_user")
     password = st.text_input("Password", type="password", placeholder="********", key="login_pass")
