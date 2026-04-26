@@ -43,26 +43,27 @@ if st.session_state.get('logged_in', False):
         st.switch_page("pages/admin_dashboard.py")
     st.stop()
 
+# TAMPILAN LOGIN COMPACT (TIDAK PERLU SCROLL)
 st.markdown("""
-<div style="display: flex; justify-content: center; align-items: center; min-height: 80vh;">
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 20px; max-width: 450px; width: 100%;">
-        <div style="background: white; padding: 35px; border-radius: 15px;">
+<div style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 20px; max-width: 400px; width: 100%;">
+        <div style="background: white; padding: 25px; border-radius: 15px;">
             <div style="text-align: center;">
-                <div style="font-size: 60px; margin-bottom: 20px;">🔐</div>
-                <h1 style="color: #667eea; margin-bottom: 10px;">Admin Login</h1>
-                <p style="color: #666; margin-bottom: 30px;">Masukkan username dan password</p>
+                <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
+                <h2 style="color: #667eea; margin-bottom: 5px;">Admin Login</h2>
+                <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Masukkan username dan password</p>
             </div>
 """, unsafe_allow_html=True)
 
 with st.form("login_form"):
-    username = st.text_input("Username", placeholder="admin")
-    password = st.text_input("Password", type="password", placeholder="admin123")
+    username = st.text_input("Username", placeholder="hahahihi", key="login_user")
+    password = st.text_input("Password", type="password", placeholder="********", key="login_pass")
     
     col1, col2 = st.columns(2)
     with col1:
         submitted = st.form_submit_button("Login", use_container_width=True, type="primary")
     with col2:
-        if st.form_submit_button("Kembali ke User", use_container_width=True):
+        if st.form_submit_button("Kembali", use_container_width=True):
             st.switch_page("pages/user.py")
 
 if submitted:
@@ -78,10 +79,10 @@ if submitted:
         st.warning("Harap isi username dan password")
 
 st.markdown("""
-            <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin-top: 20px; text-align: center;">
-                <strong>🔑 Credentials Default</strong><br>
+            <div style="background: #f0f8ff; padding: 10px; border-radius: 10px; margin-top: 15px; text-align: center;">
+                <small><strong>🔑 Info Login</strong><br>
                 Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">hahahihi</code><br>
-                Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">mungedan123#</code>
+                Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">mungedan123#</code></small>
             </div>
         </div>
     </div>
