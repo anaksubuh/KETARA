@@ -1,9 +1,6 @@
-// ========== KONFIGURASI WEBHOOK GOOGLE SHEETS ==========
-// Ganti dengan URL Web App dari Google Apps Script ANDA!
-const GOOGLE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwqbwobbKuucN_X4p9th5kV5fQFQpWZMGKF88swGqd3r6-sQCfG0T01QROqR0FQuFlK/exec
+// ========== KONFIGURASI ==========
+// Ganti dengan URL Web App ANDA!
+const GOOGLE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzquWpNjCA0-pDwDdx-CZrsgf1_CvIuCHcD5xe-lYBlbMSalbdTXu1KwcIAWstrVNUa/exec';
 
-// Konfigurasi GitHub (hanya untuk hosting file statis)
-const GITHUB_CONFIG = {
-    owner: 'anaksubuh',           // Ganti dengan username GitHub Anda
-    repo: 'KETARA.github.io'      // Ganti dengan nama repository Anda
-};
+// Pastikan URLnya benar dan bisa diakses
+console.log('Webhook URL:', GOOGLE_WEBHOOK_URL);
