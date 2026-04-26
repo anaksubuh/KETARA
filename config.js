@@ -1,6 +1,4 @@
 // ========== KONFIGURASI ==========
-// Ganti dengan URL Web App ANDA!
-const GOOGLE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxx5sRFnN9i39nqRMK8q0sBpfO6NUWy1LitKuai1hUILqIWAw748IVxaFb-xUZfrPLo/exec';
+const GOOGLE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycby2Rz64IZ6ZYp0L89hWEKku7i6M68aQlp6L-9XpI9ta-15JtLNqreBaOkqAUk_DgtkH/exec';
 
-// Pastikan URLnya benar dan bisa diakses
 console.log('Webhook URL:', GOOGLE_WEBHOOK_URL);
