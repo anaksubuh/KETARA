@@ -2,18 +2,25 @@ import streamlit as st
 import sys
 from pathlib import Path
 
+# Konfigurasi halaman - HARUS PERTAMA
+st.set_page_config(
+    page_title="Admin - Kelola Soal",
+    page_icon="📝",
+    layout="wide",
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
+)
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.github_api import GitHubAPI
 from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time
 
-st.set_page_config(
-    page_title="Admin - Kelola Soal",
-    page_icon="📝",
-    layout="wide"
-)
+# Inisialisasi session
+init_session_state()
+check_token_from_url()
+require_auth()
 
-# Tambahkan di setiap halaman admin setelah st.set_page_config
+# Sembunyikan elemen bawaan
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -22,30 +29,30 @@ st.markdown("""
     footer { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
-    button[kind="header"] { display: none !important; }
     .main > div { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# Tambahkan tombol logout di sidebar
+# Sidebar untuk admin
 with st.sidebar:
     st.markdown(f"### 👤 {st.session_state.username}")
     st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        from modules.auth_simple import logout
-        logout()
+    
+    if st.button("📊 Dashboard", use_container_width=True):
+        st.switch_page("pages/admin_dashboard.py")
+    if st.button("📝 Kelola Soal", use_container_width=True):
+        st.switch_page("pages/admin_questions.py")
+    if st.button("📊 Lihat Jawaban", use_container_width=True):
+        st.switch_page("pages/admin_responses.py")
+    if st.button("⚙️ Pengaturan", use_container_width=True):
+        st.switch_page("pages/admin_settings.py")
+    
     st.markdown("---")
-    st.caption("📌 Gunakan menu di sidebar kiri untuk navigasi")
-
-init_session_state()
-check_token_from_url()
-require_auth()
-
-with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
+    
     minutes, seconds = get_remaining_time()
     if minutes > 0 or seconds > 0:
         st.info(f"⏰ Session: {minutes}m {seconds}s")
+    
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, type="primary"):
         logout()
@@ -83,9 +90,7 @@ for q in github.get_all_questions():
     with st.container():
         st.markdown(f"**{q.get('order', q['id'])}. {q['question']}**")
         st.caption(f"{q['option_left']} | {q['option_right']}")
-        
-        status = "🟢 Aktif" if q.get('is_active', True) else "🔴 Nonaktif"
-        st.caption(f"Status: {status}")
+        st.caption(f"Status: {'🟢 Aktif' if q.get('is_active', True) else '🔴 Nonaktif'}")
         
         col1, col2, col3 = st.columns(3)
         with col1:

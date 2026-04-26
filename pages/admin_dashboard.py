@@ -5,12 +5,25 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
+# Konfigurasi halaman - HARUS PERTAMA
+st.set_page_config(
+    page_title="Admin Dashboard - Kota Magelang",
+    page_icon="👨‍💼",
+    layout="wide",
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
+)
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.github_api import GitHubAPI
-from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time, SESSION_DURATION_MINUTES
+from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time
 
-# Tambahkan di setiap halaman admin setelah st.set_page_config
+# Inisialisasi session
+init_session_state()
+check_token_from_url()
+require_auth()
+
+# Sembunyikan elemen bawaan
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -19,32 +32,33 @@ st.markdown("""
     footer { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
-    button[kind="header"] { display: none !important; }
     .main > div { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# Tambahkan tombol logout di sidebar
+# Sidebar untuk admin
 with st.sidebar:
     st.markdown(f"### 👤 {st.session_state.username}")
     st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        from modules.auth_simple import logout
-        logout()
+    
+    if st.button("📊 Dashboard", use_container_width=True):
+        st.switch_page("pages/admin_dashboard.py")
+    if st.button("📝 Kelola Soal", use_container_width=True):
+        st.switch_page("pages/admin_questions.py")
+    if st.button("📊 Lihat Jawaban", use_container_width=True):
+        st.switch_page("pages/admin_responses.py")
+    if st.button("⚙️ Pengaturan", use_container_width=True):
+        st.switch_page("pages/admin_settings.py")
+    
     st.markdown("---")
-    st.caption("📌 Gunakan menu di sidebar kiri untuk navigasi")
-
-# Konfigurasi halaman - HARUS PERTAMA
-st.set_page_config(
-    page_title="Admin Dashboard - Kota Magelang",
-    page_icon="👨‍💼",
-    layout="wide"
-)
-
-# Inisialisasi session - SETELAH page_config
-init_session_state()
-check_token_from_url()
-require_auth()
+    
+    minutes, seconds = get_remaining_time()
+    if minutes > 0 or seconds > 0:
+        st.info(f"⏰ Session: {minutes}m {seconds}s")
+    
+    st.markdown("---")
+    if st.button("🚪 Logout", use_container_width=True, type="primary"):
+        logout()
 
 # Custom CSS
 st.markdown("""
@@ -62,12 +76,6 @@ st.markdown("""
         border-radius: 16px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         text-align: center;
-        transition: transform 0.3s;
-        cursor: pointer;
-    }
-    .stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
     }
     .stat-number {
         font-size: 2.5rem;
@@ -79,44 +87,8 @@ st.markdown("""
         font-size: 0.9rem;
         margin-top: 0.5rem;
     }
-    .welcome-text {
-        font-size: 1.1rem;
-        margin-bottom: 0.5rem;
-    }
 </style>
 """, unsafe_allow_html=True)
-
-# Sidebar
-with st.sidebar:
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 1rem;">
-        <div style="font-size: 3rem;">👨‍💼</div>
-        <h3>{st.session_state.username}</h3>
-        <p style="color: #667eea; font-weight: bold;">Administrator</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Tampilkan sisa waktu session
-    minutes, seconds = get_remaining_time()
-    if minutes > 0 or seconds > 0:
-        total_seconds = SESSION_DURATION_MINUTES * 60
-        remaining_seconds = minutes * 60 + seconds
-        progress = remaining_seconds / total_seconds if total_seconds > 0 else 1
-        st.info(f"⏰ Session: **{minutes}m {seconds}s** lagi")
-        st.progress(1 - progress)
-    else:
-        st.warning("⚠️ Session akan berakhir segera!")
-    
-    st.markdown("---")
-    
-    # Tombol Logout
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        logout()
-    
-    st.markdown("---")
-    st.caption("📌 **Navigasi:** Gunakan menu di sidebar kiri untuk pindah halaman")
 
 # Header
 st.markdown("""
@@ -124,7 +96,7 @@ st.markdown("""
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
             <h1>🏙️ Dashboard Admin</h1>
-            <p class="welcome-text">Selamat datang di panel administrasi Sistem Aspirasi & Polling Kota Magelang</p>
+            <p>Selamat datang di panel administrasi Sistem Aspirasi & Polling Kota Magelang</p>
         </div>
         <div style="font-size: 3rem;">📊</div>
     </div>
@@ -174,10 +146,10 @@ if responses:
                  title="Jumlah Partisipasi per Bulan",
                  labels={'bulan': 'Bulan', 'count': 'Jumlah Partisipasi'},
                  color='count', color_continuous_scale='Blues')
-    fig.update_layout(height=400, xaxis_tickangle=-45)
+    fig.update_layout(height=400)
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Belum ada data partisipasi untuk ditampilkan")
+    st.info("Belum ada data partisipasi")
 
 # ========== AKTIVITAS TERBARU ==========
 st.markdown("---")
@@ -185,40 +157,16 @@ st.subheader("📋 Aktivitas Partisipasi Terbaru")
 
 if responses:
     recent = sorted(responses, key=lambda x: x.get('submitted_at', ''), reverse=True)[:10]
-    
     for r in recent:
-        submit_time = r.get('submitted_at', '')
-        nik = r.get('nik', 'Unknown')
-        tanggal = submit_time[:10] if submit_time else 'Unknown'
-        jam = submit_time[11:19] if len(submit_time) > 10 else 'Unknown'
-        
-        with st.expander(f"📅 {tanggal} {jam} - 👤 NIK: {nik}"):
+        with st.expander(f"📅 {r.get('submitted_at', '')[:10]} - NIK: {r.get('nik', 'Unknown')}"):
             for ans in r.get('responses', []):
                 if ans.get('answer'):
                     st.write(f"**{ans.get('question', '')}**")
                     st.write(f"Jawaban: {ans.get('answer', '')}")
                     st.write("---")
 else:
-    st.info("Belum ada aktivitas partisipasi")
-
-# ========== TOMBOL AKSI CEPAT ==========
-st.markdown("---")
-st.subheader("🚀 Aksi Cepat")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("📝 Kelola Soal", use_container_width=True, type="primary"):
-        st.switch_page("pages/admin_questions.py")
-
-with col2:
-    if st.button("📊 Lihat Jawaban", use_container_width=True, type="primary"):
-        st.switch_page("pages/admin_responses.py")
-
-with col3:
-    if st.button("⚙️ Pengaturan", use_container_width=True, type="primary"):
-        st.switch_page("pages/admin_settings.py")
+    st.info("Belum ada aktivitas")
 
 # Footer
 st.markdown("---")
-st.caption(f"© 2024 Sistem Aspirasi & Polling - Kota Magelang | Terakhir update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.caption(f"© 2024 Sistem Aspirasi & Polling - Kota Magelang")

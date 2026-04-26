@@ -6,7 +6,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.auth_simple import init_session_state, check_token_from_url, login
 
-# Konfigurasi halaman
+# Konfigurasi halaman - HARUS PERTAMA
 st.set_page_config(
     page_title="Admin Login",
     page_icon="🔐",
@@ -18,30 +18,6 @@ st.set_page_config(
         'About': None
     }
 )
-
-# Tambahkan di setiap halaman admin setelah st.set_page_config
-st.markdown("""
-<style>
-    header { display: none !important; }
-    .stApp header { display: none !important; }
-    [data-testid="stToolbar"] { display: none !important; }
-    footer { display: none !important; }
-    [data-testid="stSidebarNav"] { display: none !important; }
-    .stAppDeployButton { display: none !important; }
-    button[kind="header"] { display: none !important; }
-    .main > div { padding-top: 0rem; }
-</style>
-""", unsafe_allow_html=True)
-
-# Tambahkan tombol logout di sidebar
-with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
-    st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        from modules.auth_simple import logout
-        logout()
-    st.markdown("---")
-    st.caption("📌 Gunakan menu di sidebar kiri untuk navigasi")
 
 # Sembunyikan elemen bawaan
 st.markdown("""
@@ -104,8 +80,8 @@ if submitted:
 st.markdown("""
             <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin-top: 20px; text-align: center;">
                 <strong>🔑 Credentials Default</strong><br>
-                Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin</code><br>
-                Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin123</code>
+                Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">hahahihi</code><br>
+                Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">mungedan123#</code>
             </div>
         </div>
     </div>

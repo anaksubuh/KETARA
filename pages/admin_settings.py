@@ -3,12 +3,25 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+# Konfigurasi halaman - HARUS PERTAMA
+st.set_page_config(
+    page_title="Admin - Pengaturan",
+    page_icon="⚙️",
+    layout="wide",
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
+)
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.github_api import GitHubAPI
 from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time
 
-# Tambahkan di setiap halaman admin setelah st.set_page_config
+# Inisialisasi session
+init_session_state()
+check_token_from_url()
+require_auth()
+
+# Sembunyikan elemen bawaan
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -17,36 +30,30 @@ st.markdown("""
     footer { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
-    button[kind="header"] { display: none !important; }
     .main > div { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# Tambahkan tombol logout di sidebar
+# Sidebar untuk admin
 with st.sidebar:
     st.markdown(f"### 👤 {st.session_state.username}")
     st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        from modules.auth_simple import logout
-        logout()
+    
+    if st.button("📊 Dashboard", use_container_width=True):
+        st.switch_page("pages/admin_dashboard.py")
+    if st.button("📝 Kelola Soal", use_container_width=True):
+        st.switch_page("pages/admin_questions.py")
+    if st.button("📊 Lihat Jawaban", use_container_width=True):
+        st.switch_page("pages/admin_responses.py")
+    if st.button("⚙️ Pengaturan", use_container_width=True):
+        st.switch_page("pages/admin_settings.py")
+    
     st.markdown("---")
-    st.caption("📌 Gunakan menu di sidebar kiri untuk navigasi")
-
-st.set_page_config(
-    page_title="Admin - Pengaturan",
-    page_icon="⚙️",
-    layout="wide"
-)
-
-init_session_state()
-check_token_from_url()
-require_auth()
-
-with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
+    
     minutes, seconds = get_remaining_time()
     if minutes > 0 or seconds > 0:
         st.info(f"⏰ Session: {minutes}m {seconds}s")
+    
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, type="primary"):
         logout()
@@ -115,16 +122,16 @@ with st.expander("👥 Manajemen NIK Valid", expanded=True):
 
 # Informasi Sistem
 with st.expander("ℹ️ Informasi Sistem"):
-    responses = github.get_all_responses()
-    questions = github.get_all_questions()
+    all_responses = github.get_all_responses()
+    all_questions = github.get_all_questions()
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Partisipasi", len(responses))
+        st.metric("Total Partisipasi", len(all_responses))
     with col2:
-        st.metric("Total Warga", len(set([r['nik'] for r in responses])))
+        st.metric("Total Warga", len(set([r['nik'] for r in all_responses])))
     with col3:
-        st.metric("Total Soal", len(questions))
+        st.metric("Total Soal", len(all_questions))
 
 st.markdown("---")
 st.caption("© 2024 Sistem Aspirasi & Polling - Kota Magelang")
