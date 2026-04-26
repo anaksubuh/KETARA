@@ -75,19 +75,6 @@ with st.sidebar:
     st.markdown(f"### 👤 {st.session_state.username}")
     st.caption(f"Role: **{st.session_state.role.upper()}**")
     st.markdown("---")
-    
-    menu = st.radio(
-        "📋 **Menu Admin**",
-        [
-            "🏠 Dashboard",
-            "📝 Kelola Soal",
-            "📊 Lihat Jawaban",
-            "⚙️ Pengaturan"
-        ],
-        index=0
-    )
-    
-    st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, type="primary"):
         logout()
 
