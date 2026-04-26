@@ -45,7 +45,7 @@ if st.session_state.get('logged_in', False):
 
 # TAMPILAN LOGIN COMPACT (TIDAK PERLU SCROLL)
 st.markdown("""
-<div style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
+<div style="display: flex; justify-content: center; align-items: center; min-height: 20vh;">
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 20px; max-width: 400px; width: 100%;">
         <div style="background: white; padding: 25px; border-radius: 15px;">
             <div style="text-align: center;">
