@@ -5,7 +5,17 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Gunakan auth_simple
-from modules.auth_simple import init_session_state, check_token_from_url, login, logout
+from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time, ensure_token_in_url
+
+# Inisialisasi
+init_session_state()
+
+# Pastikan token di URL sebelum cek auth
+ensure_token_in_url()
+
+# Cek autentikasi
+check_token_from_url()
+require_auth()
 
 # Konfigurasi halaman
 st.set_page_config(
