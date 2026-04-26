@@ -3,62 +3,54 @@ const GITHUB_USERNAME = 'anaksubuh';
 const GITHUB_REPO = 'KETARA.github.io';
 const FILE_PATH = 'database.json';
 
+// ========== VARIABEL GLOBAL ==========
 let currentNik = '';
 let currentDataUser = null;
 
-// ========== BACA DATABASE ==========
+// ========== FUNGSI BACA DATABASE (SEMUA DATA DARI SINI) ==========
 async function fetchDatabase() {
+    const url = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${FILE_PATH}`;
+    
     try {
-        const url = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${FILE_PATH}`;
+        console.log('📡 Membaca database dari:', url);
         const response = await fetch(url);
         
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const text = await response.text();
-        const cleanText = text.replace(/^\uFEFF/, '').trim();
-        const data = JSON.parse(cleanText);
-        
-        if (!data.daftar_nik_valid) throw new Error('daftar_nik_valid tidak ditemukan');
-        if (!data.riwayat_penggunaan) throw new Error('riwayat_penggunaan tidak ditemukan');
-        
-        return data;
-    } catch (err) {
-        console.error('Error baca database:', err);
-        throw err;
-    }
-}
-
-// ========== SIMPAN DATABASE via GitHub Actions ==========
-async function saveToDatabase(data) {
-    try {
-        // Kirim data ke GitHub Actions via Issue
-        const response = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: `📝 Data Baru - ${currentNik} - ${new Date().toLocaleString('id-ID')}`,
-                body: JSON.stringify(data, null, 2),
-                labels: ['save-data']
-            })
-        });
+        if (response.status === 404) {
+            console.warn('⚠️ Database belum ada, buat file database.json di GitHub');
+            showMessage('⚠️ Database belum tersedia. Hubungi admin.', 'error');
+            return {
+                daftar_nik_valid: [],
+                riwayat_penggunaan: {}
+            };
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
         
-        console.log('✅ Data dikirim ke GitHub Actions');
-        return true;
+        const data = await response.json();
+        
+        // Validasi struktur
+        if (!data.daftar_nik_valid) data.daftar_nik_valid = [];
+        if (!data.riwayat_penggunaan) data.riwayat_penggunaan = {};
+        
+        console.log(`✅ Database berhasil dibaca. ${data.daftar_nik_valid.length} NIK terdaftar`);
+        return data;
+        
     } catch (err) {
-        console.error('Error simpan:', err);
-        throw err;
+        console.error('❌ Error baca database:', err);
+        showMessage('❌ Gagal membaca database. Hubungi admin.', 'error');
+        return {
+            daftar_nik_valid: [],
+            riwayat_penggunaan: {}
+        };
     }
 }
 
-// ========== CEK NIK ==========
+// ========== CEK NIK (BACA DARI DATABASE, BUKAN HARDCODE) ==========
 async function cekNik() {
-    const nik = document.getElementById('nik').value.trim();
+    const nikInput = document.getElementById('nik');
+    const nik = nikInput.value.trim();
     
     if (!nik) {
         showMessage('❌ Masukkan NIK!', 'error');
@@ -71,7 +63,7 @@ async function cekNik() {
     }
     
     if (!/^\d+$/.test(nik)) {
-        showMessage('❌ NIK hanya angka!', 'error');
+        showMessage('❌ NIK hanya boleh berisi angka!', 'error');
         return;
     }
     
@@ -80,26 +72,27 @@ async function cekNik() {
     try {
         const db = await fetchDatabase();
         
+        // CEK DARI DATABASE.JSON (BUKAN HARDCODE!)
         if (!db.daftar_nik_valid.includes(nik)) {
-            showMessage(`❌ NIK ${nik} tidak terdaftar!`, 'error');
+            showMessage(`❌ NIK ${nik} tidak terdaftar! Hubungi admin untuk pendaftaran.`, 'error');
             return;
         }
         
         const tahunIni = new Date().getFullYear();
         
+        // Inisialisasi jika belum ada riwayat
         if (!db.riwayat_penggunaan[nik]) {
             db.riwayat_penggunaan[nik] = {
                 total: 0,
                 lastReset: tahunIni,
                 history: []
             };
-            await saveToDatabase(db);
         }
         
+        // Reset jika tahun berganti
         if (db.riwayat_penggunaan[nik].lastReset !== tahunIni) {
             db.riwayat_penggunaan[nik].total = 0;
             db.riwayat_penggunaan[nik].lastReset = tahunIni;
-            await saveToDatabase(db);
         }
         
         const sudahPakai = db.riwayat_penggunaan[nik].total;
@@ -115,70 +108,76 @@ async function cekNik() {
         if (sisaKuota <= 0) {
             document.getElementById('btnPolling').disabled = true;
             document.getElementById('btnAspirasi').disabled = true;
-            showMessage(`⚠️ Kuota habis! Sudah ${sudahPakai} kali.`, 'error');
+            showMessage(`⚠️ Kuota habis! Sudah ${sudahPakai} kali digunakan tahun ini.`, 'error');
         } else {
             document.getElementById('btnPolling').disabled = false;
             document.getElementById('btnAspirasi').disabled = false;
-            showMessage(`✅ Selamat datang! Sisa kuota: ${sisaKuota} dari 10`, 'success');
+            showMessage(`✅ Selamat datang, ${nik}! Sisa kuota: ${sisaKuota} dari 10`, 'success');
         }
         
         document.getElementById('infoPanel').classList.remove('hidden');
         
     } catch (err) {
-        console.error(err);
+        console.error('Error cekNik:', err);
         showMessage(`❌ Error: ${err.message}`, 'error');
     }
 }
 
-// ========== TAMPIL FORM ==========
+// ========== FUNGSI TAMPIL FORM POLLING ==========
 function tampilFormPolling() {
     if (currentDataUser && currentDataUser.total >= 10) {
-        showMessage('❌ Kuota habis!', 'error');
+        showMessage('❌ Kuota sudah habis!', 'error');
         return;
     }
-    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    
+    // Reset semua pilihan radio
+    const radios = document.querySelectorAll('input[type="radio"]');
+    radios.forEach(radio => radio.checked = false);
+    
     document.getElementById('pollingPanel').classList.remove('hidden');
     document.getElementById('aspirasiPanel').classList.add('hidden');
 }
 
+// ========== FUNGSI TAMPIL FORM ASPIRASI ==========
 function tampilFormAspirasi() {
     if (currentDataUser && currentDataUser.total >= 10) {
-        showMessage('❌ Kuota habis!', 'error');
+        showMessage('❌ Kuota sudah habis!', 'error');
         return;
     }
+    
     document.getElementById('aspirasiText').value = '';
     document.getElementById('aspirasiPanel').classList.remove('hidden');
     document.getElementById('pollingPanel').classList.add('hidden');
 }
 
-// ========== KIRIM POLLING ==========
+// ========== FUNGSI KIRIM POLLING ==========
 async function kirimPolling() {
-    const p1 = document.querySelector('input[name="polling1"]:checked');
-    const p2 = document.querySelector('input[name="polling2"]:checked');
-    const p3 = document.querySelector('input[name="polling3"]:checked');
-    const p4 = document.querySelector('input[name="polling4"]:checked');
-    const p5 = document.querySelector('input[name="polling5"]:checked');
+    const pilihan1 = document.querySelector('input[name="polling1"]:checked');
+    const pilihan2 = document.querySelector('input[name="polling2"]:checked');
+    const pilihan3 = document.querySelector('input[name="polling3"]:checked');
+    const pilihan4 = document.querySelector('input[name="polling4"]:checked');
+    const pilihan5 = document.querySelector('input[name="polling5"]:checked');
     
-    if (!p1 || !p2 || !p3 || !p4 || !p5) {
-        showMessage('❌ Isi semua pendapat!', 'error');
+    if (!pilihan1 || !pilihan2 || !pilihan3 || !pilihan4 || !pilihan5) {
+        showMessage('❌ Silakan isi semua pendapat untuk 5 kebijakan!', 'error');
         return;
     }
     
-    const jawaban = `📊 HASIL POLLING
+    const jawaban = `📊 HASIL POLLING WARGA KOTA MAGELANG
 
-1. Bantuan Sosial: ${p1.value}
-2. Tarif Air: ${p2.value}
-3. PKL: ${p3.value}
-4. Kelurahan Cantik: ${p4.value}
-5. APBD 2026: ${p5.value}
+1️⃣ Bantuan Sosial Daerah: ${pilihan1.value}
+2️⃣ Penyesuaian Tarif Air Minum: ${pilihan2.value}
+3️⃣ Penataan & Relokasi PKL: ${pilihan3.value}
+4️⃣ Kelurahan Cantik (Satu Data): ${pilihan4.value}
+5️⃣ Perubahan APBD 2026: ${pilihan5.value}
 
-Waktu: ${new Date().toLocaleString('id-ID')}
-NIK: ${currentNik}`;
+🕐 Waktu: ${new Date().toLocaleString('id-ID')}
+🆔 NIK: ${currentNik}`;
     
     await simpanTransaksi(jawaban);
 }
 
-// ========== KIRIM ASPIRASI ==========
+// ========== FUNGSI KIRIM ASPIRASI ==========
 async function kirimAspirasi() {
     const teks = document.getElementById('aspirasiText').value.trim();
     
@@ -188,21 +187,22 @@ async function kirimAspirasi() {
     }
     
     if (teks.length < 5) {
-        showMessage('❌ Minimal 5 karakter!', 'error');
+        showMessage('❌ Aspirasi minimal 5 karakter!', 'error');
         return;
     }
     
-    const jawaban = `💬 ASPIRASI
+    const jawaban = `💬 ASPIRASI WARGA KOTA MAGELANG
 
+📝 Isi Aspirasi:
 ${teks}
 
-Waktu: ${new Date().toLocaleString('id-ID')}
-NIK: ${currentNik}`;
+🕐 Waktu: ${new Date().toLocaleString('id-ID')}
+🆔 NIK: ${currentNik}`;
     
     await simpanTransaksi(jawaban);
 }
 
-// ========== SIMPAN TRANSAKSI ==========
+// ========== SIMPAN TRANSAKSI (KE LOCALSTORAGE SEMENTARA) ==========
 async function simpanTransaksi(keterangan) {
     showMessage('⏳ Menyimpan data...', 'info');
     
@@ -211,7 +211,11 @@ async function simpanTransaksi(keterangan) {
         const tahunIni = new Date().getFullYear();
         
         if (!db.riwayat_penggunaan[currentNik]) {
-            db.riwayat_penggunaan[currentNik] = { total: 0, lastReset: tahunIni, history: [] };
+            db.riwayat_penggunaan[currentNik] = {
+                total: 0,
+                lastReset: tahunIni,
+                history: []
+            };
         }
         
         if (db.riwayat_penggunaan[currentNik].lastReset !== tahunIni) {
@@ -220,32 +224,49 @@ async function simpanTransaksi(keterangan) {
         }
         
         if (db.riwayat_penggunaan[currentNik].total >= 10) {
-            showMessage('❌ Kuota habis!', 'error');
+            showMessage('❌ Kuota sudah habis!', 'error');
             batal();
             return;
         }
         
+        // Tambah transaksi
         db.riwayat_penggunaan[currentNik].total += 1;
         db.riwayat_penggunaan[currentNik].history.push({
             tanggal: new Date().toISOString(),
-            keterangan: keterangan
+            keterangan: keterangan,
+            timestamp: Date.now()
         });
         
-        await saveToDatabase(db);
+        // SIMPAN KE LOCALSTORAGE SEMENTARA
+        // Karena tidak ada token, data disimpan di browser dulu
+        const semuaData = {
+            daftar_nik_valid: db.daftar_nik_valid,
+            riwayat_penggunaan: db.riwayat_penggunaan
+        };
+        localStorage.setItem('polling_data_backup', JSON.stringify(semuaData));
         
-        const sisa = 10 - db.riwayat_penggunaan[currentNik].total;
-        showMessage(`✅ Berhasil! Sisa kuota: ${sisa} dari 10`, 'success');
+        // Tampilkan data di console untuk admin
+        console.log('📦 DATA YANG HARUS DISIMPAN KE database.json:');
+        console.log(JSON.stringify(semuaData, null, 2));
         
-        document.getElementById('sisaKuota').innerText = sisa;
-        document.getElementById('sudahDigunakan').innerText = db.riwayat_penggunaan[currentNik].total;
+        const sudahPakai = db.riwayat_penggunaan[currentNik].total;
+        const sisaKuota = 10 - sudahPakai;
+        
+        showMessage(`✅ Berhasil! Sisa kuota: ${sisaKuota} dari 10\n\n📌 Data tersimpan di browser. Admin akan memproses.`, 'success');
+        
+        document.getElementById('sisaKuota').innerText = sisaKuota;
+        document.getElementById('sudahDigunakan').innerText = sudahPakai;
+        
+        currentDataUser = db.riwayat_penggunaan[currentNik];
         
         batal();
         
-        if (sisa <= 0) {
+        if (sisaKuota <= 0) {
             document.getElementById('btnPolling').disabled = true;
             document.getElementById('btnAspirasi').disabled = true;
         }
         
+        // Tawarkan untuk cek NIK lain
         setTimeout(() => {
             if (confirm('✅ Data tersimpan! Ingin cek NIK lain?')) {
                 document.getElementById('nik').value = '';
@@ -256,25 +277,109 @@ async function simpanTransaksi(keterangan) {
         }, 500);
         
     } catch (err) {
-        showMessage(`❌ Gagal: ${err.message}`, 'error');
+        console.error('Error simpan:', err);
+        showMessage(`❌ Gagal menyimpan: ${err.message}`, 'error');
     }
 }
 
+// ========== FUNGSI EXPORT DATA UNTUK ADMIN ==========
+function exportData() {
+    const data = localStorage.getItem('polling_data_backup');
+    if (!data) {
+        showMessage('❌ Tidak ada data tersimpan', 'error');
+        return;
+    }
+    
+    // Buat file download
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `database_export_${new Date().toISOString().slice(0,19)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showMessage('✅ Data diekspor! File JSON sudah di-download.', 'success');
+}
+
+// ========== FUNGSI BATAL ==========
 function batal() {
     document.getElementById('pollingPanel').classList.add('hidden');
     document.getElementById('aspirasiPanel').classList.add('hidden');
-    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    
+    // Reset semua radio button
+    const radios = document.querySelectorAll('input[type="radio"]');
+    radios.forEach(radio => radio.checked = false);
+    
     document.getElementById('aspirasiText').value = '';
 }
 
+// ========== FUNGSI TAMPIL PESAN ==========
 function showMessage(msg, type) {
-    const colors = { success: '#d4edda', error: '#f8d7da', info: '#d1ecf1' };
     const msgDiv = document.getElementById('message');
-    msgDiv.innerHTML = `<div style="background:${colors[type]}; padding:12px; border-radius:8px;">${msg}</div>`;
-    if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 5000);
+    const bgColors = {
+        success: '#d4edda',
+        error: '#f8d7da',
+        info: '#d1ecf1'
+    };
+    
+    msgDiv.innerHTML = `<div style="background: ${bgColors[type]}; padding: 12px; border-radius: 8px; margin-top: 10px; white-space: pre-line;">${msg}</div>`;
+    
+    if (type !== 'info') {
+        setTimeout(() => {
+            if (msgDiv.innerHTML.includes(msg)) {
+                msgDiv.innerHTML = '';
+            }
+        }, 8000);
+    }
 }
 
+// ========== TAMBAHKAN TOMBOL EXPORT UNTUK ADMIN ==========
+function tambahTombolExport() {
+    const container = document.querySelector('.container');
+    if (container && !document.getElementById('exportBtn')) {
+        const btnExport = document.createElement('button');
+        btnExport.id = 'exportBtn';
+        btnExport.innerHTML = '📤 Export Data (Admin)';
+        btnExport.onclick = exportData;
+        btnExport.style.cssText = 'background: #6c757d; color: white; margin-top: 20px; width: 100%;';
+        container.appendChild(btnExport);
+    }
+}
+
+// ========== ENTER KEY UNTUK NIK ==========
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
-    console.log('🚀 Website siap!');
+    const nikInput = document.getElementById('nik');
+    if (nikInput) {
+        nikInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') cekNik();
+        });
+    }
+    
+    tambahTombolExport();
+    
+    console.log('🚀 Website Polling Warga Kota Magelang siap digunakan!');
+    console.log('📌 Data NIK valid diambil dari database.json di GitHub');
+    console.log('📌 Data polling tersimpan di browser Anda (LocalStorage)');
+    console.log('📌 Admin bisa klik tombol "Export Data" untuk mengambil data');
 });
+
+// ========== FUNGSI DEBUG ==========
+window.lihatDatabase = async function() {
+    try {
+        const db = await fetchDatabase();
+        console.log('📊 DATABASE DARI GITHUB:', db);
+        
+        const localData = localStorage.getItem('polling_data_backup');
+        if (localData) {
+            console.log('💾 DATA TERSIMPAN DI BROWSER:', JSON.parse(localData));
+        }
+        
+        showMessage('✅ Cek console (F12) untuk lihat database', 'success');
+    } catch(err) {
+        console.error('Debug error:', err);
+        showMessage('❌ Error saat debug: ' + err.message, 'error');
+    }
+};
+
+window.exportData = exportData;
