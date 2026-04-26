@@ -1,28 +1,55 @@
-// ========== FUNGSI JSONP UNTUK MELEWATI CORS ==========
+// ========== SISTEM ASPIRASI & POLLING DENGAN GITHUB ISSUES ==========
+// User akan diarahkan ke GitHub (perlu login GitHub, TIDAK PERLU TOKEN!)
 
-function jsonpRequest(url, callbackName, onSuccess, onError) {
-  const script = document.createElement('script');
-  const callbackFunction = `jsonp_callback_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-  
-  window[callbackFunction] = function(data) {
-    delete window[callbackFunction];
-    document.body.removeChild(script);
-    onSuccess(data);
-  };
-  
-  const separator = url.includes('?') ? '&' : '?';
-  script.src = `${url}${separator}callback=${callbackFunction}`;
-  
-  script.onerror = function() {
-    delete window[callbackFunction];
-    document.body.removeChild(script);
-    onError('JSONP request failed');
-  };
-  
-  document.body.appendChild(script);
+let currentNik = '';
+let currentSisaKuota = 0;
+let currentSudahPakai = 0;
+
+// Konfigurasi repository
+const REPO_OWNER = 'anaksubuh';
+const REPO_NAME = 'KETARA.github.io';
+
+// Load daftar NIK dari database.json (public, tanpa token)
+async function loadDaftarNIK() {
+  try {
+    const response = await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/database.json`);
+    const data = await response.json();
+    return data.daftar_nik_valid || [];
+  } catch (error) {
+    console.error('Gagal load NIK:', error);
+    return ["1111111111111111", "2222222222222222", "3333333333333333"];
+  }
 }
 
-// ========== CEK NIK (pakai JSONP) ==========
+// Cek kuota dari localStorage
+function getKuota(nik) {
+  const riwayat = JSON.parse(localStorage.getItem(`kuota_${nik}`) || '{}');
+  const tahunIni = new Date().getFullYear();
+  
+  if (!riwayat.tahun || riwayat.tahun !== tahunIni) {
+    return { sisa: 10, sudah: 0 };
+  }
+  return { sisa: 10 - (riwayat.total || 0), sudah: riwayat.total || 0 };
+}
+
+function updateKuota(nik) {
+  const riwayat = JSON.parse(localStorage.getItem(`kuota_${nik}`) || '{}');
+  const tahunIni = new Date().getFullYear();
+  
+  riwayat.tahun = tahunIni;
+  riwayat.total = (riwayat.total || 0) + 1;
+  
+  localStorage.setItem(`kuota_${nik}`, JSON.stringify(riwayat));
+  return riwayat.total;
+}
+
+// Buka halaman Create Issue di GitHub
+function buatIssueGitHub(title, body) {
+  const url = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=save-data`;
+  window.open(url, '_blank');
+}
+
+// ========== CEK NIK ==========
 async function cekNik() {
   const nik = document.getElementById('nik').value.trim();
   
@@ -37,199 +64,47 @@ async function cekNik() {
   }
   
   const btnCek = document.querySelector('#stepNik button');
-  const originalText = btnCek.textContent;
   btnCek.disabled = true;
   btnCek.textContent = '⏳ Memeriksa...';
   
-  showMessage('⏳ Memverifikasi NIK...', 'info');
+  showMessage('⏳ Memeriksa NIK...', 'info');
   
-  const url = `${GOOGLE_WEBHOOK_URL}?action=cek_nik&nik=${encodeURIComponent(nik)}`;
+  // Load daftar NIK
+  const daftarNIK = await loadDaftarNIK();
   
-  jsonpRequest(url, 'callback', function(result) {
-    console.log('Hasil cek NIK:', result);
-    
-    if (result.success && result.valid) {
-      // Ambil kuota
-      const kuotaUrl = `${GOOGLE_WEBHOOK_URL}?action=get_kuota&nik=${encodeURIComponent(nik)}`;
-      
-      jsonpRequest(kuotaUrl, 'callback', function(kuota) {
-        console.log('Hasil kuota:', kuota);
-        
-        if (kuota.success) {
-          currentNik = nik;
-          currentSisaKuota = kuota.sisa;
-          currentSudahPakai = kuota.total;
-          
-          document.getElementById('displayNik').innerText = nik;
-          document.getElementById('sisaKuota').innerText = kuota.sisa;
-          document.getElementById('sudahDigunakan').innerText = kuota.total;
-          document.getElementById('infoPanel').classList.remove('hidden');
-          
-          if (kuota.sisa <= 0) {
-            document.getElementById('btnPolling').disabled = true;
-            document.getElementById('btnAspirasi').disabled = true;
-            showMessage(`⚠️ Kuota habis! Sudah ${kuota.total} kali.`, 'error');
-          } else {
-            document.getElementById('btnPolling').disabled = false;
-            document.getElementById('btnAspirasi').disabled = false;
-            showMessage(`✅ Selamat datang! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
-          }
-        } else {
-          showMessage('❌ Gagal mengambil kuota', 'error');
-        }
-        
-        btnCek.disabled = false;
-        btnCek.textContent = originalText;
-      }, function(err) {
-        showMessage('❌ Gagal mengambil kuota', 'error');
-        btnCek.disabled = false;
-        btnCek.textContent = originalText;
-      });
-      
-    } else {
-      showMessage(`❌ NIK ${nik} tidak terdaftar!`, 'error');
-      btnCek.disabled = false;
-      btnCek.textContent = originalText;
-    }
-  }, function(err) {
-    showMessage('❌ Gagal koneksi ke server!', 'error');
+  if (!daftarNIK.includes(nik)) {
+    showMessage(`❌ NIK ${nik} tidak terdaftar! Hubungi admin.`, 'error');
     btnCek.disabled = false;
-    btnCek.textContent = originalText;
-  });
-}
-
-// ========== KIRIM POLLING (pakai JSONP) ==========
-async function kirimPolling() {
-  const p1 = document.querySelector('input[name="polling1"]:checked');
-  const p2 = document.querySelector('input[name="polling2"]:checked');
-  const p3 = document.querySelector('input[name="polling3"]:checked');
-  const p4 = document.querySelector('input[name="polling4"]:checked');
-  const p5 = document.querySelector('input[name="polling5"]:checked');
-  
-  if (!p1 || !p2 || !p3 || !p4 || !p5) {
-    showMessage('❌ Isi semua pendapat!', 'error');
+    btnCek.textContent = '✔️ Cek NIK';
     return;
   }
   
-  const btnSubmit = document.querySelector('#pollingPanel .btn-submit');
-  const originalText = btnSubmit.textContent;
-  btnSubmit.disabled = true;
-  btnSubmit.textContent = '⏳ Menyimpan...';
+  const kuota = getKuota(nik);
   
-  showMessage('⏳ Menyimpan polling...', 'info');
+  currentNik = nik;
+  currentSisaKuota = kuota.sisa;
+  currentSudahPakai = kuota.sudah;
   
-  const url = `${GOOGLE_WEBHOOK_URL}?action=simpan_polling&nik=${encodeURIComponent(currentNik)}&kebijakan1=${encodeURIComponent(p1.value)}&kebijakan2=${encodeURIComponent(p2.value)}&kebijakan3=${encodeURIComponent(p3.value)}&kebijakan4=${encodeURIComponent(p4.value)}&kebijakan5=${encodeURIComponent(p5.value)}`;
+  document.getElementById('displayNik').innerText = nik;
+  document.getElementById('sisaKuota').innerText = kuota.sisa;
+  document.getElementById('sudahDigunakan').innerText = kuota.sudah;
+  document.getElementById('infoPanel').classList.remove('hidden');
   
-  jsonpRequest(url, 'callback', function(result) {
-    if (result.success) {
-      // Update kuota
-      const kuotaUrl = `${GOOGLE_WEBHOOK_URL}?action=get_kuota&nik=${encodeURIComponent(currentNik)}`;
-      
-      jsonpRequest(kuotaUrl, 'callback', function(kuota) {
-        if (kuota.success) {
-          currentSisaKuota = kuota.sisa;
-          currentSudahPakai = kuota.total;
-          document.getElementById('sisaKuota').innerText = kuota.sisa;
-          document.getElementById('sudahDigunakan').innerText = kuota.total;
-          showMessage(`✅ Polling berhasil! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
-          
-          if (kuota.sisa <= 0) {
-            document.getElementById('btnPolling').disabled = true;
-            document.getElementById('btnAspirasi').disabled = true;
-          }
-        } else {
-          showMessage('✅ Polling tersimpan, tapi gagal update kuota', 'success');
-        }
-        
-        batal();
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = originalText;
-      }, function(err) {
-        showMessage('✅ Polling tersimpan', 'success');
-        batal();
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = originalText;
-      });
-      
-    } else {
-      showMessage('❌ Gagal menyimpan polling!', 'error');
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = originalText;
-    }
-  }, function(err) {
-    showMessage('❌ Gagal koneksi ke server!', 'error');
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = originalText;
-  });
-}
-
-// ========== KIRIM ASPIRASI (pakai JSONP) ==========
-async function kirimAspirasi() {
-  const teks = document.getElementById('aspirasiText').value.trim();
-  
-  if (!teks) {
-    showMessage('❌ Aspirasi tidak boleh kosong!', 'error');
-    return;
+  if (kuota.sisa <= 0) {
+    document.getElementById('btnPolling').disabled = true;
+    document.getElementById('btnAspirasi').disabled = true;
+    showMessage(`⚠️ Kuota habis! Sudah ${kuota.sudah} kali.`, 'error');
+  } else {
+    document.getElementById('btnPolling').disabled = false;
+    document.getElementById('btnAspirasi').disabled = false;
+    showMessage(`✅ Selamat datang! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
   }
   
-  if (teks.length < 5) {
-    showMessage('❌ Minimal 5 karakter!', 'error');
-    return;
-  }
-  
-  const btnSubmit = document.querySelector('#aspirasiPanel .btn-submit');
-  const originalText = btnSubmit.textContent;
-  btnSubmit.disabled = true;
-  btnSubmit.textContent = '⏳ Menyimpan...';
-  
-  showMessage('⏳ Menyimpan aspirasi...', 'info');
-  
-  const url = `${GOOGLE_WEBHOOK_URL}?action=simpan_aspirasi&nik=${encodeURIComponent(currentNik)}&aspirasi=${encodeURIComponent(teks)}`;
-  
-  jsonpRequest(url, 'callback', function(result) {
-    if (result.success) {
-      // Update kuota
-      const kuotaUrl = `${GOOGLE_WEBHOOK_URL}?action=get_kuota&nik=${encodeURIComponent(currentNik)}`;
-      
-      jsonpRequest(kuotaUrl, 'callback', function(kuota) {
-        if (kuota.success) {
-          currentSisaKuota = kuota.sisa;
-          currentSudahPakai = kuota.total;
-          document.getElementById('sisaKuota').innerText = kuota.sisa;
-          document.getElementById('sudahDigunakan').innerText = kuota.total;
-          showMessage(`✅ Aspirasi berhasil! Sisa kuota: ${kuota.sisa} dari 10`, 'success');
-          
-          if (kuota.sisa <= 0) {
-            document.getElementById('btnPolling').disabled = true;
-            document.getElementById('btnAspirasi').disabled = true;
-          }
-        } else {
-          showMessage('✅ Aspirasi tersimpan!', 'success');
-        }
-        
-        batal();
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = originalText;
-      }, function(err) {
-        showMessage('✅ Aspirasi tersimpan!', 'success');
-        batal();
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = originalText;
-      });
-      
-    } else {
-      showMessage('❌ Gagal menyimpan aspirasi!', 'error');
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = originalText;
-    }
-  }, function(err) {
-    showMessage('❌ Gagal koneksi ke server!', 'error');
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = originalText;
-  });
+  btnCek.disabled = false;
+  btnCek.textContent = '✔️ Cek NIK';
 }
 
-// Fungsi lainnya (tampilFormPolling, tampilFormAspirasi, batal, showMessage) tetap sama
+// ========== TAMPIL FORM ==========
 function tampilFormPolling() {
   if (currentSisaKuota <= 0) {
     showMessage('❌ Kuota habis!', 'error');
@@ -250,6 +125,92 @@ function tampilFormAspirasi() {
   document.getElementById('pollingPanel').classList.add('hidden');
 }
 
+// ========== KIRIM POLLING ==========
+function kirimPolling() {
+  const p1 = document.querySelector('input[name="polling1"]:checked');
+  const p2 = document.querySelector('input[name="polling2"]:checked');
+  const p3 = document.querySelector('input[name="polling3"]:checked');
+  const p4 = document.querySelector('input[name="polling4"]:checked');
+  const p5 = document.querySelector('input[name="polling5"]:checked');
+  
+  if (!p1 || !p2 || !p3 || !p4 || !p5) {
+    showMessage('❌ Isi semua pendapat!', 'error');
+    return;
+  }
+  
+  const title = `POLLING: NIK ${currentNik}`;
+  const body = `📊 **HASIL POLLING WARGAnn
+nn| Kebijakan | Pendapat |
+|-----------|----------|
+| Bantuan Sosial | ${p1.value} |
+| Tarif Air | ${p2.value} |
+| PKL | ${p3.value} |
+| Kelurahan Cantik | ${p4.value} |
+| APBD 2026 | ${p5.value} |
+nn---
+**NIK:** ${currentNik}  
+**Waktu:** ${new Date().toLocaleString('id-ID')}
+**User Agent:** ${navigator.userAgent.substring(0, 100)}`;
+  
+  buatIssueGitHub(title, body);
+  
+  // Update kuota lokal
+  updateKuota(currentNik);
+  const kuota = getKuota(currentNik);
+  currentSisaKuota = kuota.sisa;
+  currentSudahPakai = kuota.sudah;
+  
+  document.getElementById('sisaKuota').innerText = currentSisaKuota;
+  document.getElementById('sudahDigunakan').innerText = currentSudahPakai;
+  
+  showMessage(`✅ Buka halaman GitHub yang muncul, lalu klik "Submit new issue". Data akan otomatis tersimpan! Sisa kuota: ${currentSisaKuota} dari 10`, 'success');
+  
+  batal();
+  
+  if (currentSisaKuota <= 0) {
+    document.getElementById('btnPolling').disabled = true;
+    document.getElementById('btnAspirasi').disabled = true;
+  }
+}
+
+// ========== KIRIM ASPIRASI ==========
+function kirimAspirasi() {
+  const teks = document.getElementById('aspirasiText').value.trim();
+  
+  if (!teks) {
+    showMessage('❌ Aspirasi tidak boleh kosong!', 'error');
+    return;
+  }
+  
+  if (teks.length < 5) {
+    showMessage('❌ Minimal 5 karakter!', 'error');
+    return;
+  }
+  
+  const title = `ASPIRASI: NIK ${currentNik}`;
+  const body = `💬 **ASPIRASI MASYARAKAT**nn${teks}nn---nn**NIK:** ${currentNik}  n**Waktu:** ${new Date().toLocaleString('id-ID')}`;
+  
+  buatIssueGitHub(title, body);
+  
+  // Update kuota lokal
+  updateKuota(currentNik);
+  const kuota = getKuota(currentNik);
+  currentSisaKuota = kuota.sisa;
+  currentSudahPakai = kuota.sudah;
+  
+  document.getElementById('sisaKuota').innerText = currentSisaKuota;
+  document.getElementById('sudahDigunakan').innerText = currentSudahPakai;
+  
+  showMessage(`✅ Buka halaman GitHub yang muncul, lalu klik "Submit new issue". Data akan otomatis tersimpan! Sisa kuota: ${currentSisaKuota} dari 10`, 'success');
+  
+  batal();
+  
+  if (currentSisaKuota <= 0) {
+    document.getElementById('btnPolling').disabled = true;
+    document.getElementById('btnAspirasi').disabled = true;
+  }
+}
+
 function batal() {
   document.getElementById('pollingPanel').classList.add('hidden');
   document.getElementById('aspirasiPanel').classList.add('hidden');
@@ -261,11 +222,12 @@ function showMessage(msg, type) {
   const colors = { success: '#d4edda', error: '#f8d7da', info: '#d1ecf1' };
   const msgDiv = document.getElementById('message');
   msgDiv.innerHTML = `<div style="background:${colors[type]}; padding:12px; border-radius:8px; white-space:pre-line;">${msg}</div>`;
-  if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 5000);
+  if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 8000);
 }
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
-  console.log('🚀 Website siap! Webhook:', GOOGLE_WEBHOOK_URL);
+  console.log('🚀 Website Aspirasi Kota Magelang siap!');
+  console.log('Menggunakan sistem GitHub Issues');
 });
