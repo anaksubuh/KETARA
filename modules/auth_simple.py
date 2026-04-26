@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 SESSION_DURATION_MINUTES = 10
 
 # CREDENTIALS
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+ADMIN_USERNAME = "hahahihi"
+ADMIN_PASSWORD = "mungedan123#"
 
 def init_session_state():
     if 'logged_in' not in st.session_state:

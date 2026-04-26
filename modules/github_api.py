@@ -14,7 +14,6 @@ class GitHubAPI:
         self.repo = st.secrets.get("REPO_NAME", "KETARA")
         self.base_url = "https://api.github.com/repos"
         
-        # Debug token
         if not self.token:
             st.error("❌ GITHUB_TOKEN tidak ditemukan di secrets!")
         
@@ -30,9 +29,7 @@ class GitHubAPI:
         }
     
     def _get_file(self, path: str) -> Optional[Dict]:
-        """Mendapatkan file dari GitHub"""
         url = f"{self.base_url}/{self.owner}/{self.repo}/contents/{path}"
-        
         try:
             response = requests.get(url, headers=self._get_headers())
             if response.status_code == 200:
@@ -49,8 +46,7 @@ class GitHubAPI:
         except Exception as e:
             return None
     
-    def _save_file(self, path: str, data: Any, sha: Optional[str] = None) -> tuple:
-        """Menyimpan file ke GitHub - return (success, error_message)"""
+    def _save_file(self, path: str, data: Any, sha: Optional[str] = None) -> bool:
         url = f"{self.base_url}/{self.owner}/{self.repo}/contents/{path}"
         content = json.dumps(data, indent=2, ensure_ascii=False)
         encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
@@ -66,22 +62,16 @@ class GitHubAPI:
         
         try:
             response = requests.put(url, headers=self._get_headers(), json=payload)
-            if response.status_code in [200, 201]:
-                return True, "Berhasil"
-            else:
-                error_detail = response.json() if response.text else {}
-                return False, f"Status {response.status_code}: {error_detail.get('message', 'Unknown error')}"
+            return response.status_code in [200, 201]
         except Exception as e:
-            return False, str(e)
+            return False
     
-    # ========== MANAJEMEN PERTANYAAN (CRUD) ==========
+    # ========== MANAJEMEN PERTANYAAN ==========
     
     def get_all_questions(self) -> List[Dict]:
-        """Mendapatkan semua pertanyaan polling"""
         file_data = self._get_file(self.questions_file)
         
         if not file_data:
-            # Data default
             default_questions = [
                 {
                     "id": "1",
@@ -107,8 +97,7 @@ class GitHubAPI:
         
         return file_data['data'].get('questions', [])
     
-    def _save_questions_data(self, questions: List[Dict]) -> tuple:
-        """Menyimpan data questions ke GitHub"""
+    def _save_questions_data(self, questions: List[Dict]) -> bool:
         file_data = self._get_file(self.questions_file)
         sha = file_data['sha'] if file_data else None
         
@@ -121,10 +110,8 @@ class GitHubAPI:
         return self._save_file(self.questions_file, data, sha)
     
     def add_question(self, question: Dict) -> bool:
-        """Menambah pertanyaan baru"""
         questions = self.get_all_questions()
         
-        # Generate new ID
         existing_ids = [int(q.get('id', 0)) for q in questions if q.get('id', '').isdigit()]
         max_id = max(existing_ids) if existing_ids else 0
         question['id'] = str(max_id + 1)
@@ -132,78 +119,50 @@ class GitHubAPI:
         question['order'] = len(questions) + 1
         
         questions.append(question)
-        success, msg = self._save_questions_data(questions)
-        
-        if not success:
-            st.error(f"Gagal tambah soal: {msg}")
-        return success
+        return self._save_questions_data(questions)
     
     def update_question(self, question_id: str, updated_question: Dict) -> bool:
-        """Update pertanyaan"""
         questions = self.get_all_questions()
         
         for i, q in enumerate(questions):
             if q.get('id') == question_id:
-                # Pertahankan ID dan created_at
                 updated_question['id'] = question_id
                 updated_question['created_at'] = q.get('created_at', datetime.now().isoformat())
                 updated_question['updated_at'] = datetime.now().isoformat()
                 updated_question['order'] = q.get('order', i + 1)
-                
                 questions[i] = updated_question
-                success, msg = self._save_questions_data(questions)
-                
-                if not success:
-                    st.error(f"Gagal update soal: {msg}")
-                return success
+                return self._save_questions_data(questions)
         
-        st.error(f"Soal dengan ID {question_id} tidak ditemukan")
         return False
     
     def delete_question(self, question_id: str) -> bool:
-        """Menghapus pertanyaan"""
         questions = self.get_all_questions()
         original_count = len(questions)
         
         questions = [q for q in questions if q.get('id') != question_id]
         
         if len(questions) == original_count:
-            st.error(f"Soal dengan ID {question_id} tidak ditemukan")
             return False
         
-        # Reorder
         for i, q in enumerate(questions):
             q['order'] = i + 1
         
-        success, msg = self._save_questions_data(questions)
-        
-        if not success:
-            st.error(f"Gagal hapus soal: {msg}")
-        return success
+        return self._save_questions_data(questions)
     
     def toggle_question_active(self, question_id: str) -> bool:
-        """Aktif/nonaktifkan pertanyaan"""
         questions = self.get_all_questions()
         
         for i, q in enumerate(questions):
             if q.get('id') == question_id:
-                current_status = q.get('is_active', True)
-                questions[i]['is_active'] = not current_status
+                questions[i]['is_active'] = not q.get('is_active', True)
                 questions[i]['updated_at'] = datetime.now().isoformat()
-                
-                success, msg = self._save_questions_data(questions)
-                
-                if not success:
-                    st.error(f"Gagal toggle status: {msg}")
-                return success
+                return self._save_questions_data(questions)
         
-        st.error(f"Soal dengan ID {question_id} tidak ditemukan")
         return False
     
     # ========== MANAJEMEN RESPONS ==========
     
     def save_response(self, nik: str, responses: List[Dict]) -> bool:
-        """Menyimpan respons user"""
         file_data = self._get_file(self.responses_file)
         
         if not file_data:
@@ -213,43 +172,33 @@ class GitHubAPI:
             data = file_data['data']
             sha = file_data['sha']
         
-        # Hitung kuota
-        nik_responses = [r for r in data['responses'] if r.get('nik') == nik]
         current_year = datetime.now().year
-        used_this_year = len([r for r in nik_responses if r.get('year') == current_year])
         
         response_record = {
             'id': f"{nik}_{datetime.now().timestamp()}",
             'nik': nik,
             'responses': responses,
             'submitted_at': datetime.now().isoformat(),
-            'year': current_year,
-            'used_count': used_this_year + 1
+            'year': current_year
         }
         
         data['responses'].append(response_record)
         data['last_updated'] = datetime.now().isoformat()
         data['total_responses'] = len(data['responses'])
         
-        success, msg = self._save_file(self.responses_file, data, sha)
-        return success
+        return self._save_file(self.responses_file, data, sha)
     
     def get_all_responses(self) -> List[Dict]:
-        """Mendapatkan semua respons"""
         file_data = self._get_file(self.responses_file)
-        
         if not file_data:
             return []
-        
         return file_data['data'].get('responses', [])
     
     def get_user_responses(self, nik: str) -> List[Dict]:
-        """Mendapatkan respons user berdasarkan NIK"""
         responses = self.get_all_responses()
         return [r for r in responses if r.get('nik') == nik]
     
     def get_user_quota(self, nik: str) -> Dict:
-        """Mendapatkan kuota user untuk tahun ini"""
         responses = self.get_all_responses()
         current_year = datetime.now().year
         max_quota = st.secrets.get("MAX_QUOTA_PER_YEAR", 10)
@@ -267,7 +216,6 @@ class GitHubAPI:
     # ========== MANAJEMEN NIK VALID ==========
     
     def get_valid_niks(self) -> List[str]:
-        """Mendapatkan daftar NIK valid"""
         file_data = self._get_file(self.users_file)
         
         if not file_data:
@@ -281,7 +229,6 @@ class GitHubAPI:
         return file_data['data'].get('valid_niks', [])
     
     def add_valid_nik(self, nik: str) -> bool:
-        """Menambah NIK valid"""
         file_data = self._get_file(self.users_file)
         
         if not file_data:
@@ -299,11 +246,9 @@ class GitHubAPI:
             'last_updated': datetime.now().isoformat()
         }
         
-        success, msg = self._save_file(self.users_file, data, sha)
-        return success
+        return self._save_file(self.users_file, data, sha)
     
     def remove_valid_nik(self, nik: str) -> bool:
-        """Menghapus NIK valid"""
         file_data = self._get_file(self.users_file)
         
         if not file_data:
@@ -318,5 +263,32 @@ class GitHubAPI:
             'last_updated': datetime.now().isoformat()
         }
         
-        success, msg = self._save_file(self.users_file, data, file_data['sha'])
-        return success
+        return self._save_file(self.users_file, data, file_data['sha'])
+    
+    # ========== MANAJEMEN SETTINGS (DITAMBAHKAN) ==========
+    
+    def get_settings(self) -> Dict:
+        """Mendapatkan pengaturan sistem"""
+        file_data = self._get_file(self.settings_file)
+        
+        if not file_data:
+            default_settings = {
+                'system_name': 'Sistem Aspirasi & Polling',
+                'max_quota_per_year': 10,
+                'allow_polling': True,
+                'allow_aspirasi': True,
+                'last_updated': datetime.now().isoformat()
+            }
+            self._save_file(self.settings_file, default_settings, None)
+            return default_settings
+        
+        return file_data['data']
+    
+    def save_settings(self, settings: Dict) -> bool:
+        """Menyimpan pengaturan sistem"""
+        file_data = self._get_file(self.settings_file)
+        sha = file_data['sha'] if file_data else None
+        
+        settings['last_updated'] = datetime.now().isoformat()
+        
+        return self._save_file(self.settings_file, settings, sha)
