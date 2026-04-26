@@ -1,122 +1,124 @@
 import streamlit as st
-import sys
-from pathlib import Path
+import uuid
+from datetime import datetime, timedelta
 
-sys.path.append(str(Path(__file__).parent.parent))
+# ========== KONFIGURASI SESSION ==========
+SESSION_DURATION_MINUTES = 10
 
-from modules.auth_simple import init_session_state, check_token_from_url, login, logout
+# CREDENTIALS
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"
 
-# Konfigurasi halaman - HARUS PERTAMA
-st.set_page_config(
-    page_title="Login Admin",
-    page_icon="🔐",
-    layout="centered"
-)
+def init_session_state():
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'username' not in st.session_state:
+        st.session_state.username = None
+    if 'role' not in st.session_state:
+        st.session_state.role = None
+    if 'token' not in st.session_state:
+        st.session_state.token = None
+    if 'session_id' not in st.session_state:
+        st.session_state.session_id = None
+    if 'login_time' not in st.session_state:
+        st.session_state.login_time = None
+    if 'expiry_time' not in st.session_state:
+        st.session_state.expiry_time = None
 
-# Inisialisasi session - SETELAH page_config
-init_session_state()
-check_token_from_url()
-
-# Jika sudah login, redirect ke dashboard
-if st.session_state.get('logged_in', False):
-    st.success(f"✅ Anda sudah login sebagai {st.session_state.username}")
-    if st.button("🚀 Buka Dashboard Admin", use_container_width=True):
-        st.switch_page("pages/admin_dashboard.py")
-    st.stop()
-
-# Custom CSS
-st.markdown("""
-<style>
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 80vh;
-    }
-    .login-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 40px;
-        border-radius: 20px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        max-width: 450px;
-        width: 100%;
-    }
-    .login-box {
-        background: white;
-        padding: 35px;
-        border-radius: 15px;
-    }
-    .login-title {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    .login-title h1 {
-        color: #667eea;
-        margin-bottom: 10px;
-    }
-    .login-icon {
-        font-size: 60px;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .credential-box {
-        background: #f0f8ff;
-        padding: 15px;
-        border-radius: 10px;
-        margin-top: 20px;
-        text-align: center;
-        border: 1px solid #667eea;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Tampilkan halaman login
-st.markdown("""
-<div class="login-container">
-    <div class="login-card">
-        <div class="login-box">
-            <div class="login-icon">🔐</div>
-            <div class="login-title">
-                <h1>Admin Login</h1>
-                <p>Masukkan username dan password admin</p>
-            </div>
-""", unsafe_allow_html=True)
-
-# Form Login
-with st.form("login_form"):
-    username = st.text_input("Username", placeholder="admin", key="login_user")
-    password = st.text_input("Password", type="password", placeholder="admin123", key="login_pass")
+def check_token_from_url():
+    query_params = st.query_params
     
-    col1, col2 = st.columns(2)
-    with col1:
-        submitted = st.form_submit_button("Login", use_container_width=True, type="primary")
-    with col2:
-        if st.form_submit_button("Kembali ke User", use_container_width=True):
-            st.switch_page("pages/user.py")
+    if st.session_state.get('logged_in', False):
+        if st.session_state.expiry_time:
+            if datetime.now() < st.session_state.expiry_time:
+                return True
+            else:
+                logout()
+                return False
+        return True
+    
+    if 'token' in query_params:
+        token = query_params['token']
+        try:
+            parts = token.split('|')
+            if len(parts) >= 3:
+                username = parts[0]
+                session_id = parts[1]
+                expiry_time_str = parts[2]
+                
+                expiry_time = datetime.fromisoformat(expiry_time_str)
+                if datetime.now() < expiry_time:
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    st.session_state.role = "admin"
+                    st.session_state.token = token
+                    st.session_state.session_id = session_id
+                    st.session_state.login_time = datetime.now()
+                    st.session_state.expiry_time = expiry_time
+                    return True
+                else:
+                    st.query_params.clear()
+                    return False
+        except Exception as e:
+            pass
+    
+    return False
 
-if submitted:
-    if username and password:
-        success, message = login(username, password)
-        if success:
-            st.success(message)
-            st.balloons()
-            st.rerun()
-        else:
-            st.error(message)
-    else:
-        st.warning("Harap isi username dan password")
+def login(username, password):
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        session_id = str(uuid.uuid4())
+        login_time = datetime.now()
+        expiry_time = login_time + timedelta(minutes=SESSION_DURATION_MINUTES)
+        
+        token = f"{username}|{session_id}|{expiry_time.isoformat()}"
+        
+        st.session_state.logged_in = True
+        st.session_state.username = username
+        st.session_state.role = "admin"
+        st.session_state.token = token
+        st.session_state.session_id = session_id
+        st.session_state.login_time = login_time
+        st.session_state.expiry_time = expiry_time
+        
+        st.query_params["token"] = token
+        
+        return True, f"Login berhasil! Session berlaku {SESSION_DURATION_MINUTES} menit"
+    
+    return False, "Username atau password salah!"
 
-# Info credentials
-st.markdown("""
-<div class="credential-box">
-    <strong>🔑 Credentials Default</strong><br>
-    Username: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin</code><br>
-    Password: <code style="background:#e0e0e0; padding:2px 6px; border-radius:4px;">admin123</code>
-</div>
-""", unsafe_allow_html=True)
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.session_state.role = None
+    st.session_state.token = None
+    st.session_state.session_id = None
+    st.session_state.login_time = None
+    st.session_state.expiry_time = None
+    
+    st.query_params.clear()
+    st.rerun()
 
-st.markdown("""
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+def require_auth():
+    if not st.session_state.get('logged_in', False):
+        if not check_token_from_url():
+            st.warning("⚠️ Silakan login terlebih dahulu")
+            st.stop()
+    
+    if st.session_state.get('role') != 'admin':
+        st.error("❌ Anda tidak memiliki akses ke halaman ini")
+        st.stop()
+    
+    if st.session_state.expiry_time:
+        if datetime.now() > st.session_state.expiry_time:
+            logout()
+            st.warning("⏰ Session telah berakhir. Silakan login kembali.")
+            st.stop()
+
+def get_remaining_time():
+    if st.session_state.expiry_time:
+        remaining = (st.session_state.expiry_time - datetime.now()).total_seconds()
+        if remaining > 0:
+            minutes = int(remaining // 60)
+            seconds = int(remaining % 60)
+            return minutes, seconds
+    return 0, 0
