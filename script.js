@@ -139,15 +139,17 @@ function kirimPolling() {
   }
   
   const title = `POLLING: NIK ${currentNik}`;
-  const body = `📊 **HASIL POLLING WARGAnn
-nn| Kebijakan | Pendapat |
+  const body = `📊 **HASIL POLLING WARGA**
+
+| Kebijakan | Pendapat |
 |-----------|----------|
 | Bantuan Sosial | ${p1.value} |
 | Tarif Air | ${p2.value} |
 | PKL | ${p3.value} |
 | Kelurahan Cantik | ${p4.value} |
 | APBD 2026 | ${p5.value} |
-nn---
+
+---
 **NIK:** ${currentNik}  
 **Waktu:** ${new Date().toLocaleString('id-ID')}
 **User Agent:** ${navigator.userAgent.substring(0, 100)}`;
@@ -188,7 +190,13 @@ function kirimAspirasi() {
   }
   
   const title = `ASPIRASI: NIK ${currentNik}`;
-  const body = `💬 **ASPIRASI MASYARAKAT**nn${teks}nn---nn**NIK:** ${currentNik}  n**Waktu:** ${new Date().toLocaleString('id-ID')}`;
+  const body = `💬 **ASPIRASI MASYARAKAT**
+
+${teks}
+
+---
+**NIK:** ${currentNik}  
+**Waktu:** ${new Date().toLocaleString('id-ID')}`;
   
   buatIssueGitHub(title, body);
   
@@ -230,4 +238,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
   console.log('🚀 Website Aspirasi Kota Magelang siap!');
   console.log('Menggunakan sistem GitHub Issues');
+  console.log('Repository:', `${REPO_OWNER}/${REPO_NAME}`);
 });
