@@ -1,47 +1,35 @@
-// ========== KONFIGURASI ==========
-const GITHUB_USERNAME = 'anaksubuh';
-const GITHUB_REPO = 'KETARA.github.io';
-const FILE_PATH = 'database.json';
-
-// ========== DAFTAR NIK VALID (EDIT DI SINI SAJA) ==========
+// ========== DAFTAR NIK VALID (EDIT DI SINI) ==========
 const DAFTAR_NIK_VALID = [
     "1111111111111111",
     "2222222222222222",
     "3333333333333333"
 ];
 
+// ========== DATA RIWAYAT (Tersimpan di Browser) ==========
 let currentNik = '';
 let currentDataUser = null;
-let riwayatPenggunaan = {}; // Data polling disimpan di localStorage
+let riwayatPenggunaan = {};
 
-// ========== BACA DATABASE ==========
-async function fetchDatabase() {
-    // Baca riwayat dari localStorage
-    const saved = localStorage.getItem('polling_riwayat');
+// ========== LOAD DATA DARI BROWSER ==========
+function loadData() {
+    const saved = localStorage.getItem('polling_data');
     if (saved) {
         riwayatPenggunaan = JSON.parse(saved);
+        console.log('✅ Data dimuat dari browser');
     }
-    
-    return {
-        daftar_nik_valid: DAFTAR_NIK_VALID,
-        riwayat_penggunaan: riwayatPenggunaan
-    };
 }
 
-// ========== SIMPAN DATABASE ==========
-async function saveToDatabase(data) {
-    riwayatPenggunaan = data.riwayat_penggunaan;
-    localStorage.setItem('polling_riwayat', JSON.stringify(riwayatPenggunaan));
-    console.log('✅ Data tersimpan di browser');
+// ========== SAVE DATA KE BROWSER ==========
+function saveData() {
+    localStorage.setItem('polling_data', JSON.stringify(riwayatPenggunaan));
+    console.log('✅ Data disimpan ke browser');
     
-    // Tampilkan data untuk admin (bisa di-copy ke database.json)
-    console.log('📦 DATA UNTUK ADMIN (copy ke database.json):');
+    // Tampilkan data untuk admin (copy ke database.json)
+    console.log('📦 COPY INI KE database.json:');
     console.log(JSON.stringify({
         daftar_nik_valid: DAFTAR_NIK_VALID,
         riwayat_penggunaan: riwayatPenggunaan
     }, null, 2));
-    
-    return true;
 }
 
 // ========== CEK NIK ==========
@@ -63,60 +51,52 @@ async function cekNik() {
         return;
     }
     
-    showMessage('⏳ Memeriksa NIK...', 'info');
-    
-    try {
-        const db = await fetchDatabase();
-        
-        // CEK DARI VARIABEL DAFTAR_NIK_VALID
-        if (!db.daftar_nik_valid.includes(nik)) {
-            showMessage(`❌ NIK ${nik} tidak terdaftar!`, 'error');
-            return;
-        }
-        
-        const tahunIni = new Date().getFullYear();
-        
-        if (!db.riwayat_penggunaan[nik]) {
-            db.riwayat_penggunaan[nik] = {
-                total: 0,
-                lastReset: tahunIni,
-                history: []
-            };
-            await saveToDatabase(db);
-        }
-        
-        if (db.riwayat_penggunaan[nik].lastReset !== tahunIni) {
-            db.riwayat_penggunaan[nik].total = 0;
-            db.riwayat_penggunaan[nik].lastReset = tahunIni;
-            await saveToDatabase(db);
-        }
-        
-        const sudahPakai = db.riwayat_penggunaan[nik].total;
-        const sisaKuota = 10 - sudahPakai;
-        
-        currentNik = nik;
-        currentDataUser = db.riwayat_penggunaan[nik];
-        
-        document.getElementById('displayNik').innerText = nik;
-        document.getElementById('sisaKuota').innerText = sisaKuota;
-        document.getElementById('sudahDigunakan').innerText = sudahPakai;
-        
-        if (sisaKuota <= 0) {
-            document.getElementById('btnPolling').disabled = true;
-            document.getElementById('btnAspirasi').disabled = true;
-            showMessage(`⚠️ Kuota habis! Sudah ${sudahPakai} kali.`, 'error');
-        } else {
-            document.getElementById('btnPolling').disabled = false;
-            document.getElementById('btnAspirasi').disabled = false;
-            showMessage(`✅ Selamat datang! Sisa kuota: ${sisaKuota} dari 10`, 'success');
-        }
-        
-        document.getElementById('infoPanel').classList.remove('hidden');
-        
-    } catch (err) {
-        console.error(err);
-        showMessage(`❌ Error: ${err.message}`, 'error');
+    // CEK APAKAH NIK VALID
+    if (!DAFTAR_NIK_VALID.includes(nik)) {
+        showMessage(`❌ NIK ${nik} tidak terdaftar!`, 'error');
+        return;
     }
+    
+    const tahunIni = new Date().getFullYear();
+    
+    // Inisialisasi jika belum ada
+    if (!riwayatPenggunaan[nik]) {
+        riwayatPenggunaan[nik] = {
+            total: 0,
+            lastReset: tahunIni,
+            history: []
+        };
+        saveData();
+    }
+    
+    // Reset jika tahun berganti
+    if (riwayatPenggunaan[nik].lastReset !== tahunIni) {
+        riwayatPenggunaan[nik].total = 0;
+        riwayatPenggunaan[nik].lastReset = tahunIni;
+        saveData();
+    }
+    
+    const sudahPakai = riwayatPenggunaan[nik].total;
+    const sisaKuota = 10 - sudahPakai;
+    
+    currentNik = nik;
+    currentDataUser = riwayatPenggunaan[nik];
+    
+    document.getElementById('displayNik').innerText = nik;
+    document.getElementById('sisaKuota').innerText = sisaKuota;
+    document.getElementById('sudahDigunakan').innerText = sudahPakai;
+    
+    if (sisaKuota <= 0) {
+        document.getElementById('btnPolling').disabled = true;
+        document.getElementById('btnAspirasi').disabled = true;
+        showMessage(`⚠️ Kuota habis! Sudah ${sudahPakai} kali.`, 'error');
+    } else {
+        document.getElementById('btnPolling').disabled = false;
+        document.getElementById('btnAspirasi').disabled = false;
+        showMessage(`✅ Selamat datang! Sisa kuota: ${sisaKuota} dari 10`, 'success');
+    }
+    
+    document.getElementById('infoPanel').classList.remove('hidden');
 }
 
 // ========== TAMPIL FORM ==========
@@ -195,58 +175,47 @@ NIK: ${currentNik}`;
 async function simpanTransaksi(keterangan) {
     showMessage('⏳ Menyimpan data...', 'info');
     
-    try {
-        const db = await fetchDatabase();
-        const tahunIni = new Date().getFullYear();
-        
-        if (!db.riwayat_penggunaan[currentNik]) {
-            db.riwayat_penggunaan[currentNik] = { total: 0, lastReset: tahunIni, history: [] };
-        }
-        
-        if (db.riwayat_penggunaan[currentNik].lastReset !== tahunIni) {
-            db.riwayat_penggunaan[currentNik].total = 0;
-            db.riwayat_penggunaan[currentNik].lastReset = tahunIni;
-        }
-        
-        if (db.riwayat_penggunaan[currentNik].total >= 10) {
-            showMessage('❌ Kuota habis!', 'error');
-            batal();
-            return;
-        }
-        
-        db.riwayat_penggunaan[currentNik].total += 1;
-        db.riwayat_penggunaan[currentNik].history.push({
-            tanggal: new Date().toISOString(),
-            keterangan: keterangan
-        });
-        
-        await saveToDatabase(db);
-        
-        const sisa = 10 - db.riwayat_penggunaan[currentNik].total;
-        showMessage(`✅ Berhasil! Sisa kuota: ${sisa} dari 10`, 'success');
-        
-        document.getElementById('sisaKuota').innerText = sisa;
-        document.getElementById('sudahDigunakan').innerText = db.riwayat_penggunaan[currentNik].total;
-        
-        batal();
-        
-        if (sisa <= 0) {
-            document.getElementById('btnPolling').disabled = true;
-            document.getElementById('btnAspirasi').disabled = true;
-        }
-        
-        setTimeout(() => {
-            if (confirm('✅ Data tersimpan! Ingin cek NIK lain?')) {
-                document.getElementById('nik').value = '';
-                document.getElementById('infoPanel').classList.add('hidden');
-                currentNik = '';
-                currentDataUser = null;
-            }
-        }, 500);
-        
-    } catch (err) {
-        showMessage(`❌ Gagal: ${err.message}`, 'error');
+    const tahunIni = new Date().getFullYear();
+    
+    if (!riwayatPenggunaan[currentNik]) {
+        riwayatPenggunaan[currentNik] = { total: 0, lastReset: tahunIni, history: [] };
     }
+    
+    if (riwayatPenggunaan[currentNik].total >= 10) {
+        showMessage('❌ Kuota habis!', 'error');
+        batal();
+        return;
+    }
+    
+    riwayatPenggunaan[currentNik].total += 1;
+    riwayatPenggunaan[currentNik].history.push({
+        tanggal: new Date().toISOString(),
+        keterangan: keterangan
+    });
+    
+    saveData();
+    
+    const sisa = 10 - riwayatPenggunaan[currentNik].total;
+    showMessage(`✅ Berhasil! Sisa kuota: ${sisa} dari 10`, 'success');
+    
+    document.getElementById('sisaKuota').innerText = sisa;
+    document.getElementById('sudahDigunakan').innerText = riwayatPenggunaan[currentNik].total;
+    
+    batal();
+    
+    if (sisa <= 0) {
+        document.getElementById('btnPolling').disabled = true;
+        document.getElementById('btnAspirasi').disabled = true;
+    }
+    
+    setTimeout(() => {
+        if (confirm('✅ Data tersimpan! Ingin cek NIK lain?')) {
+            document.getElementById('nik').value = '';
+            document.getElementById('infoPanel').classList.add('hidden');
+            currentNik = '';
+            currentDataUser = null;
+        }
+    }, 500);
 }
 
 function batal() {
@@ -259,11 +228,11 @@ function batal() {
 function showMessage(msg, type) {
     const colors = { success: '#d4edda', error: '#f8d7da', info: '#d1ecf1' };
     const msgDiv = document.getElementById('message');
-    msgDiv.innerHTML = `<div style="background:${colors[type]}; padding:12px; border-radius:8px;">${msg}</div>`;
+    msgDiv.innerHTML = `<div style="background:${colors[type]}; padding:12px; border-radius:8px; white-space:pre-line;">${msg}</div>`;
     if (type !== 'info') setTimeout(() => msgDiv.innerHTML = '', 5000);
 }
 
-// ========== TOMBOL EXPORT UNTUK ADMIN ==========
+// ========== EXPORT DATA (UNTUK ADMIN) ==========
 function exportData() {
     const data = {
         daftar_nik_valid: DAFTAR_NIK_VALID,
@@ -284,24 +253,26 @@ function exportData() {
 function tambahTombolExport() {
     const container = document.querySelector('.container');
     if (container && !document.getElementById('exportBtn')) {
-        const btnExport = document.createElement('button');
-        btnExport.id = 'exportBtn';
-        btnExport.innerHTML = '📤 Export Data (Admin)';
-        btnExport.onclick = exportData;
-        btnExport.style.cssText = 'background: #6c757d; color: white; margin-top: 20px; width: 100%;';
-        container.appendChild(btnExport);
+        const btn = document.createElement('button');
+        btn.id = 'exportBtn';
+        btn.innerHTML = '📤 Export Data (Admin)';
+        btn.onclick = exportData;
+        btn.style.cssText = 'background: #6c757d; color: white; margin-top: 20px; width: 100%;';
+        container.appendChild(btn);
     }
 }
 
+// ========== INIT ==========
+loadData();
+tambahTombolExport();
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nik')?.addEventListener('keypress', e => e.key === 'Enter' && cekNik());
-    tambahTombolExport();
     console.log('🚀 Website siap!');
-    console.log('📋 Daftar NIK valid:', DAFTAR_NIK_VALID);
+    console.log('📋 Daftar NIK:', DAFTAR_NIK_VALID);
 });
 
 window.lihatData = function() {
-    console.log('📊 DAFTAR NIK VALID:', DAFTAR_NIK_VALID);
-    console.log('📝 RIWAYAT PENGGUNAAN:', riwayatPenggunaan);
-    showMessage('Cek console (F12) untuk lihat data', 'info');
+    console.log('📊 NIK:', DAFTAR_NIK_VALID);
+    console.log('📝 Riwayat:', riwayatPenggunaan);
 };
