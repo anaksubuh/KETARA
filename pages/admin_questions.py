@@ -4,8 +4,10 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from modules.auth import init_session_state, check_token_from_url, require_auth, logout
 from modules.github_api import GitHubAPI
+
+from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout
+
 
 # Konfigurasi halaman
 st.set_page_config(
