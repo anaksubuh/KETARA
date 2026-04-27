@@ -40,7 +40,7 @@ class GitHubAPI:
                 if show_success:
                     st.success(f"✅ Terhubung ke {self.repo}")
             elif r.status_code == 401:
-                st.error("❌ Token GitHub tidak valid atau sudah kadaluarsa. Buat token baru.")
+                st.error("❌ Token GitHub tidak valid atau sudah kadaluarsa. Buat token baru dengan scope 'repo'.")
                 self.valid = False
                 return
             elif r.status_code == 404:
@@ -56,7 +56,7 @@ class GitHubAPI:
             self.valid = False
             return
 
-        # Inisialisasi database.json (hanya jika valid)
+        # Inisialisasi database.json
         if self.valid:
             self._init_database()
 
@@ -98,9 +98,6 @@ class GitHubAPI:
                 content = base64.b64decode(data['content']).decode()
                 return {'data': json.loads(content), 'sha': data.get('sha')}
             else:
-                # Jangan tampilkan error setiap kali, karena bisa dipanggil berulang
-                # Tapi untuk debugging bisa diaktifkan
-                # st.error(f"Gagal baca database: {resp.status_code}")
                 return None
         except Exception as e:
             st.error(f"Error membaca database: {e}")
@@ -119,5 +116,153 @@ class GitHubAPI:
             st.error(f"Error menyimpan database: {e}")
             return False
 
-    # ... sisanya (get_all_questions, add_question, dll) tetap sama seperti kode Anda ...
-    # (Saya tidak menulis ulang semuanya karena panjang, tapi Anda bisa salin dari kode asli dan tambahkan method di bawah ini)
+    # ==================== QUESTIONS ====================
+    def get_all_questions(self) -> List[Dict]:
+        db = self._get_database()
+        return db['data'].get('questions', []) if db else []
+
+    def add_question(self, question: str, option_left: str, option_right: str, is_active: bool = True) -> bool:
+        db = self._get_database()
+        if not db:
+            st.error("Database tidak tersedia. Periksa koneksi GitHub.")
+            return False
+        questions = db['data'].get('questions', [])
+        new_id = max([q.get('id', 0) for q in questions], default=0) + 1
+        new_q = {
+            'id': new_id,
+            'question': question,
+            'option_left': option_left,
+            'option_right': option_right,
+            'is_active': is_active,
+            'created_at': datetime.now().isoformat()
+        }
+        questions.append(new_q)
+        db['data']['questions'] = questions
+        success = self._save_database(db['data'], db['sha'])
+        if success:
+            st.success(f"Soal ditambahkan (ID {new_id})")
+        else:
+            st.error("Gagal simpan soal")
+        return success
+
+    def update_question(self, qid: int, question: str, option_left: str, option_right: str, is_active: bool) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        for q in db['data']['questions']:
+            if q['id'] == qid:
+                q['question'] = question
+                q['option_left'] = option_left
+                q['option_right'] = option_right
+                q['is_active'] = is_active
+                break
+        return self._save_database(db['data'], db['sha'])
+
+    def update_question_status(self, qid: int, is_active: bool) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        for q in db['data']['questions']:
+            if q['id'] == qid:
+                q['is_active'] = is_active
+                break
+        return self._save_database(db['data'], db['sha'])
+
+    def delete_question(self, qid: int) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        db['data']['questions'] = [q for q in db['data']['questions'] if q['id'] != qid]
+        return self._save_database(db['data'], db['sha'])
+
+    # ==================== RESPONSES ====================
+    def get_all_responses(self) -> List[Dict]:
+        db = self._get_database()
+        return db['data'].get('responses', []) if db else []
+
+    def save_response(self, nik: str, responses_list: List[Dict], aspirasi: str = "") -> bool:
+        db = self._get_database()
+        if not db:
+            st.error("Database tidak tersedia. Partisipasi gagal disimpan.")
+            return False
+        new_entry = {
+            'nik': nik,
+            'submitted_at': datetime.now().isoformat(),
+            'responses': responses_list,
+            'aspirasi': aspirasi
+        }
+        db['data']['responses'].append(new_entry)
+        saved = self._save_database(db['data'], db['sha'])
+        if saved:
+            self._update_user_quota(nik)
+        return saved
+
+    # ==================== NIK ====================
+    def get_valid_niks(self) -> List[str]:
+        db = self._get_database()
+        return db['data'].get('valid_niks', []) if db else []
+
+    def add_valid_nik(self, nik: str) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        if nik not in db['data']['valid_niks']:
+            db['data']['valid_niks'].append(nik)
+            return self._save_database(db['data'], db['sha'])
+        return True
+
+    def delete_valid_nik(self, nik: str) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        db['data']['valid_niks'] = [n for n in db['data']['valid_niks'] if n != nik]
+        return self._save_database(db['data'], db['sha'])
+
+    # ==================== KUOTA ====================
+    def get_quota_config(self) -> Dict:
+        db = self._get_database()
+        return db['data'].get('quota_config', {'max_per_year': 10}) if db else {'max_per_year': 10}
+
+    def update_quota_config(self, max_per_year: int) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        db['data']['quota_config'] = {'max_per_year': max_per_year, 'updated_at': datetime.now().isoformat()}
+        return self._save_database(db['data'], db['sha'])
+
+    def get_user_quota(self, nik: str) -> Dict:
+        db = self._get_database()
+        if not db:
+            return {'max': 10, 'used': 0, 'remaining': 10, 'can_submit': True}
+        quotas = db['data'].get('user_quotas', {})
+        current_year = datetime.now().year
+        user = quotas.get(nik, {})
+        if user.get('last_reset') != current_year:
+            user = {'used': 0, 'last_reset': current_year}
+        max_q = self.get_quota_config().get('max_per_year', 10)
+        used = user.get('used', 0)
+        return {
+            'max': max_q,
+            'used': used,
+            'remaining': max_q - used,
+            'can_submit': used < max_q
+        }
+
+    def _update_user_quota(self, nik: str) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        quotas = db['data'].get('user_quotas', {})
+        current_year = datetime.now().year
+        if nik not in quotas or quotas[nik].get('last_reset') != current_year:
+            quotas[nik] = {'used': 0, 'last_reset': current_year}
+        quotas[nik]['used'] += 1
+        db['data']['user_quotas'] = quotas
+        return self._save_database(db['data'], db['sha'])
+
+    def reset_all_quotas(self) -> bool:
+        db = self._get_database()
+        if not db:
+            return False
+        db['data']['user_quotas'] = {}
+        return self._save_database(db['data'], db['sha'])
