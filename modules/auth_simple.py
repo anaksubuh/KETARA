@@ -32,9 +32,10 @@ def login(username, password):
     return False
 
 def logout():
-    for key in ['authenticated', 'username', 'login_time', 'expiry_time']:
-        if key in st.session_state:
-            del st.session_state[key]
+    st.session_state.authenticated = False
+    st.session_state.username = None
+    st.session_state.login_time = None
+    st.session_state.expiry_time = None
 
 def is_session_valid():
     if not st.session_state.get('authenticated', False):
@@ -60,12 +61,10 @@ def get_remaining_time():
     return 0, 0
 
 def check_token_from_url():
-    """Auto login jika ada token di URL"""
     query_params = st.query_params
     if 'token' in query_params and query_params['token'] == 'admin_secret_2024':
         if not st.session_state.get('authenticated', False):
             login('admin', 'admin123')
-            # Hapus token dari URL agar tidak kelihatan
             st.query_params.clear()
             return True
     return False
