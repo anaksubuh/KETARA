@@ -1,294 +1,369 @@
 import requests
 import json
-import base64
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
+import hashlib
 import streamlit as st
 
 class GitHubAPI:
-    """Handler untuk menyimpan data ke GitHub"""
-    
     def __init__(self):
-        self.token = st.secrets.get("GITHUB_TOKEN", "")
-        self.owner = st.secrets.get("REPO_OWNER", "anaksubuh")
-        self.repo = st.secrets.get("REPO_NAME", "KETARA")
-        self.base_url = "https://api.github.com/repos"
-        
-        if not self.token:
-            st.error("❌ GITHUB_TOKEN tidak ditemukan di secrets!")
-        
-        self.questions_file = "data/questions.json"
-        self.responses_file = "data/responses.json"
-        self.users_file = "data/users.json"
-        self.settings_file = "data/settings.json"
-        
-    def _get_headers(self):
-        return {
+        # Ganti dengan config GitHub Anda
+        self.token = st.secrets.get("GITHUB_TOKEN", "YOUR_GITHUB_TOKEN")
+        self.repo = st.secrets.get("GITHUB_REPO", "YOUR_USERNAME/YOUR_REPO")
+        self.base_url = f"https://api.github.com/repos/{self.repo}/contents"
+        self.headers = {
             "Authorization": f"token {self.token}",
             "Accept": "application/vnd.github.v3+json"
         }
     
-    def _get_file(self, path: str) -> Optional[Dict]:
-        url = f"{self.base_url}/{self.owner}/{self.repo}/contents/{path}"
+    # ========== MANAJEMEN SOAL ==========
+    def get_all_questions(self) -> List[Dict]:
+        """Ambil semua soal dari GitHub"""
         try:
-            response = requests.get(url, headers=self._get_headers())
+            url = f"{self.base_url}/data/questions.json"
+            response = requests.get(url, headers=self.headers)
+            
             if response.status_code == 200:
                 content = response.json()
-                decoded = base64.b64decode(content['content']).decode('utf-8')
-                return {
-                    'data': json.loads(decoded),
-                    'sha': content['sha']
-                }
-            elif response.status_code == 404:
-                return None
-            else:
-                return None
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                return data.get('questions', [])
+            return []
         except Exception as e:
-            return None
+            print(f"Error get questions: {e}")
+            return []
     
-    def _save_file(self, path: str, data: Any, sha: Optional[str] = None) -> bool:
-        url = f"{self.base_url}/{self.owner}/{self.repo}/contents/{path}"
-        content = json.dumps(data, indent=2, ensure_ascii=False)
-        encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-        
-        payload = {
-            "message": f"Update {path} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "content": encoded,
-            "branch": "main"
-        }
-        
-        if sha:
-            payload["sha"] = sha
-        
+    def add_question(self, question: str, option_left: str, option_right: str, is_active: bool = True) -> bool:
+        """Tambah soal baru"""
         try:
-            response = requests.put(url, headers=self._get_headers(), json=payload)
+            questions = self.get_all_questions()
+            new_id = max([q.get('id', 0) for q in questions]) + 1 if questions else 1
+            
+            new_question = {
+                'id': new_id,
+                'question': question,
+                'option_left': option_left,
+                'option_right': option_right,
+                'is_active': is_active,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            questions.append(new_question)
+            return self._save_questions(questions)
+        except Exception as e:
+            print(f"Error add question: {e}")
+            return False
+    
+    def update_question_status(self, question_id: int, is_active: bool) -> bool:
+        """Update status soal (aktif/nonaktif)"""
+        try:
+            questions = self.get_all_questions()
+            for q in questions:
+                if q.get('id') == question_id:
+                    q['is_active'] = is_active
+                    break
+            return self._save_questions(questions)
+        except Exception as e:
+            print(f"Error update status: {e}")
+            return False
+    
+    def delete_question(self, question_id: int) -> bool:
+        """Hapus soal"""
+        try:
+            questions = self.get_all_questions()
+            questions = [q for q in questions if q.get('id') != question_id]
+            return self._save_questions(questions)
+        except Exception as e:
+            print(f"Error delete question: {e}")
+            return False
+    
+    def _save_questions(self, questions: List[Dict]) -> bool:
+        """Simpan soal ke GitHub"""
+        try:
+            url = f"{self.base_url}/data/questions.json"
+            
+            # Get current file SHA
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            # Prepare new content
+            import base64
+            content = base64.b64encode(json.dumps({'questions': questions}, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Update questions {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
+            }
+            
+            response = requests.put(url, headers=self.headers, json=data)
             return response.status_code in [200, 201]
         except Exception as e:
+            print(f"Error save questions: {e}")
             return False
     
-    # ========== MANAJEMEN PERTANYAAN ==========
-    
-    def get_all_questions(self) -> List[Dict]:
-        file_data = self._get_file(self.questions_file)
-        
-        if not file_data:
-            default_questions = [
-                {
-                    "id": "1",
-                    "question": "2 + 2 = 4",
-                    "option_left": "✅ Setuju",
-                    "option_right": "❌ Tidak Setuju",
-                    "is_active": True,
-                    "order": 1,
-                    "created_at": datetime.now().isoformat()
-                },
-                {
-                    "id": "2",
-                    "question": "Kebijakan Bantuan Sosial Daerah sudah tepat sasaran",
-                    "option_left": "✅ Setuju",
-                    "option_right": "❌ Tidak Setuju",
-                    "is_active": True,
-                    "order": 2,
-                    "created_at": datetime.now().isoformat()
-                }
-            ]
-            self._save_file(self.questions_file, {'questions': default_questions, 'last_updated': datetime.now().isoformat()}, None)
-            return default_questions
-        
-        return file_data['data'].get('questions', [])
-    
-    def _save_questions_data(self, questions: List[Dict]) -> bool:
-        file_data = self._get_file(self.questions_file)
-        sha = file_data['sha'] if file_data else None
-        
-        data = {
-            'last_updated': datetime.now().isoformat(),
-            'total_questions': len(questions),
-            'questions': questions
-        }
-        
-        return self._save_file(self.questions_file, data, sha)
-    
-    def add_question(self, question: Dict) -> bool:
-        questions = self.get_all_questions()
-        
-        existing_ids = [int(q.get('id', 0)) for q in questions if q.get('id', '').isdigit()]
-        max_id = max(existing_ids) if existing_ids else 0
-        question['id'] = str(max_id + 1)
-        question['created_at'] = datetime.now().isoformat()
-        question['order'] = len(questions) + 1
-        
-        questions.append(question)
-        return self._save_questions_data(questions)
-    
-    def update_question(self, question_id: str, updated_question: Dict) -> bool:
-        questions = self.get_all_questions()
-        
-        for i, q in enumerate(questions):
-            if q.get('id') == question_id:
-                updated_question['id'] = question_id
-                updated_question['created_at'] = q.get('created_at', datetime.now().isoformat())
-                updated_question['updated_at'] = datetime.now().isoformat()
-                updated_question['order'] = q.get('order', i + 1)
-                questions[i] = updated_question
-                return self._save_questions_data(questions)
-        
-        return False
-    
-    def delete_question(self, question_id: str) -> bool:
-        questions = self.get_all_questions()
-        original_count = len(questions)
-        
-        questions = [q for q in questions if q.get('id') != question_id]
-        
-        if len(questions) == original_count:
-            return False
-        
-        for i, q in enumerate(questions):
-            q['order'] = i + 1
-        
-        return self._save_questions_data(questions)
-    
-    def toggle_question_active(self, question_id: str) -> bool:
-        questions = self.get_all_questions()
-        
-        for i, q in enumerate(questions):
-            if q.get('id') == question_id:
-                questions[i]['is_active'] = not q.get('is_active', True)
-                questions[i]['updated_at'] = datetime.now().isoformat()
-                return self._save_questions_data(questions)
-        
-        return False
-    
-    # ========== MANAJEMEN RESPONS ==========
-    
-    def save_response(self, nik: str, responses: List[Dict]) -> bool:
-        file_data = self._get_file(self.responses_file)
-        
-        if not file_data:
-            data = {'responses': []}
-            sha = None
-        else:
-            data = file_data['data']
-            sha = file_data['sha']
-        
-        current_year = datetime.now().year
-        
-        response_record = {
-            'id': f"{nik}_{datetime.now().timestamp()}",
-            'nik': nik,
-            'responses': responses,
-            'submitted_at': datetime.now().isoformat(),
-            'year': current_year
-        }
-        
-        data['responses'].append(response_record)
-        data['last_updated'] = datetime.now().isoformat()
-        data['total_responses'] = len(data['responses'])
-        
-        return self._save_file(self.responses_file, data, sha)
-    
+    # ========== MANAJEMEN RESPONSES ==========
     def get_all_responses(self) -> List[Dict]:
-        file_data = self._get_file(self.responses_file)
-        if not file_data:
+        """Ambil semua response dari GitHub"""
+        try:
+            url = f"{self.base_url}/data/responses.json"
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code == 200:
+                content = response.json()
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                return data.get('responses', [])
             return []
-        return file_data['data'].get('responses', [])
+        except Exception as e:
+            print(f"Error get responses: {e}")
+            return []
     
-    def get_user_responses(self, nik: str) -> List[Dict]:
-        responses = self.get_all_responses()
-        return [r for r in responses if r.get('nik') == nik]
-    
-    def get_user_quota(self, nik: str) -> Dict:
-        responses = self.get_all_responses()
-        current_year = datetime.now().year
-        max_quota = st.secrets.get("MAX_QUOTA_PER_YEAR", 10)
-        
-        user_responses = [r for r in responses if r.get('nik') == nik]
-        used_this_year = len([r for r in user_responses if r.get('year') == current_year])
-        
-        return {
-            'used': used_this_year,
-            'remaining': max_quota - used_this_year,
-            'max': max_quota,
-            'can_submit': used_this_year < max_quota
-        }
-    
-    # ========== MANAJEMEN NIK VALID ==========
-    
-    def get_valid_niks(self) -> List[str]:
-        file_data = self._get_file(self.users_file)
-        
-        if not file_data:
-            default_users = {
-                'valid_niks': ['1111111111111111', '2222222222222222', '3333333333333333'],
-                'last_updated': datetime.now().isoformat()
+    def save_response(self, nik: str, responses_list: List[Dict], aspirasi: str = "") -> bool:
+        """Simpan response baru"""
+        try:
+            all_responses = self.get_all_responses()
+            
+            new_response = {
+                'nik': nik,
+                'submitted_at': datetime.now().isoformat(),
+                'responses': responses_list,
+                'aspirasi': aspirasi
             }
-            self._save_file(self.users_file, default_users, None)
-            return default_users['valid_niks']
-        
-        return file_data['data'].get('valid_niks', [])
+            
+            all_responses.append(new_response)
+            
+            # Update kuota user
+            self._update_user_quota(nik)
+            
+            return self._save_responses(all_responses)
+        except Exception as e:
+            print(f"Error save response: {e}")
+            return False
+    
+    def _save_responses(self, responses: List[Dict]) -> bool:
+        """Simpan responses ke GitHub"""
+        try:
+            url = f"{self.base_url}/data/responses.json"
+            
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            import base64
+            content = base64.b64encode(json.dumps({'responses': responses}, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Update responses {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
+            }
+            
+            response = requests.put(url, headers=self.headers, json=data)
+            return response.status_code in [200, 201]
+        except Exception as e:
+            print(f"Error save responses: {e}")
+            return False
+    
+    # ========== MANAJEMEN NIK ==========
+    def get_valid_niks(self) -> List[str]:
+        """Ambil daftar NIK terdaftar"""
+        try:
+            url = f"{self.base_url}/data/valid_niks.json"
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code == 200:
+                content = response.json()
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                return data.get('niks', [])
+            return []
+        except Exception as e:
+            print(f"Error get valid niks: {e}")
+            return []
     
     def add_valid_nik(self, nik: str) -> bool:
-        file_data = self._get_file(self.users_file)
-        
-        if not file_data:
-            niks = []
-            sha = None
-        else:
-            niks = file_data['data'].get('valid_niks', [])
-            sha = file_data['sha']
-        
-        if nik not in niks:
-            niks.append(nik)
-        
-        data = {
-            'valid_niks': niks,
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        return self._save_file(self.users_file, data, sha)
-    
-    def remove_valid_nik(self, nik: str) -> bool:
-        file_data = self._get_file(self.users_file)
-        
-        if not file_data:
+        """Tambah NIK baru"""
+        try:
+            niks = self.get_valid_niks()
+            if nik not in niks:
+                niks.append(nik)
+            return self._save_valid_niks(niks)
+        except Exception as e:
+            print(f"Error add nik: {e}")
             return False
-        
-        niks = file_data['data'].get('valid_niks', [])
-        if nik in niks:
-            niks.remove(nik)
-        
-        data = {
-            'valid_niks': niks,
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        return self._save_file(self.users_file, data, file_data['sha'])
     
-    # ========== MANAJEMEN SETTINGS ==========
+    def delete_valid_nik(self, nik: str) -> bool:
+        """Hapus NIK"""
+        try:
+            niks = self.get_valid_niks()
+            niks = [n for n in niks if n != nik]
+            return self._save_valid_niks(niks)
+        except Exception as e:
+            print(f"Error delete nik: {e}")
+            return False
     
-    def get_settings(self) -> Dict:
-        """Mendapatkan pengaturan sistem"""
-        file_data = self._get_file(self.settings_file)
-        
-        if not file_data:
-            default_settings = {
-                'system_name': 'Sistem Aspirasi & Polling',
-                'max_quota_per_year': 10,
-                'allow_polling': True,
-                'allow_aspirasi': True,
-                'last_updated': datetime.now().isoformat()
+    def _save_valid_niks(self, niks: List[str]) -> bool:
+        """Simpan daftar NIK ke GitHub"""
+        try:
+            url = f"{self.base_url}/data/valid_niks.json"
+            
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            import base64
+            content = base64.b64encode(json.dumps({'niks': niks}, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Update valid niks {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
             }
-            self._save_file(self.settings_file, default_settings, None)
-            return default_settings
-        
-        return file_data['data']
+            
+            response = requests.put(url, headers=self.headers, json=data)
+            return response.status_code in [200, 201]
+        except Exception as e:
+            print(f"Error save niks: {e}")
+            return False
     
-    def save_settings(self, settings: Dict) -> bool:
-        """Menyimpan pengaturan sistem"""
-        file_data = self._get_file(self.settings_file)
-        sha = file_data['sha'] if file_data else None
-        
-        settings['last_updated'] = datetime.now().isoformat()
-        
-        return self._save_file(self.settings_file, settings, sha)
+    # ========== MANAJEMEN KUOTA ==========
+    def get_quota_config(self) -> Dict:
+        """Ambil konfigurasi kuota"""
+        try:
+            url = f"{self.base_url}/data/quota_config.json"
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code == 200:
+                content = response.json()
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                return data
+            return {'max_per_year': 3}
+        except Exception as e:
+            print(f"Error get quota config: {e}")
+            return {'max_per_year': 3}
+    
+    def update_quota_config(self, max_per_year: int) -> bool:
+        """Update konfigurasi kuota"""
+        try:
+            url = f"{self.base_url}/data/quota_config.json"
+            
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            config = {'max_per_year': max_per_year, 'updated_at': datetime.now().isoformat()}
+            
+            import base64
+            content = base64.b64encode(json.dumps(config, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Update quota config {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
+            }
+            
+            response = requests.put(url, headers=self.headers, json=data)
+            return response.status_code in [200, 201]
+        except Exception as e:
+            print(f"Error update quota config: {e}")
+            return False
+    
+    def get_user_quota(self, nik: str) -> Dict:
+        """Dapatkan kuota user"""
+        try:
+            url = f"{self.base_url}/data/user_quotas.json"
+            response = requests.get(url, headers=self.headers)
+            
+            quotas = {}
+            if response.status_code == 200:
+                content = response.json()
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                quotas = data.get('quotas', {})
+            
+            current_year = datetime.now().year
+            user_data = quotas.get(nik, {})
+            last_reset = user_data.get('last_reset', 0)
+            
+            # Reset tahunan
+            if last_reset != current_year:
+                user_data = {'used': 0, 'last_reset': current_year}
+            
+            max_quota = self.get_quota_config().get('max_per_year', 3)
+            used = user_data.get('used', 0)
+            
+            return {
+                'max': max_quota,
+                'used': used,
+                'remaining': max_quota - used,
+                'can_submit': used < max_quota
+            }
+        except Exception as e:
+            print(f"Error get user quota: {e}")
+            return {'max': 3, 'used': 0, 'remaining': 3, 'can_submit': True}
+    
+    def _update_user_quota(self, nik: str) -> bool:
+        """Update kuota user setelah submit"""
+        try:
+            url = f"{self.base_url}/data/user_quotas.json"
+            
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            quotas = {}
+            if response.status_code == 200:
+                content = response.json()
+                import base64
+                data = json.loads(base64.b64decode(content['content']).decode())
+                quotas = data.get('quotas', {})
+            
+            current_year = datetime.now().year
+            if nik not in quotas:
+                quotas[nik] = {'used': 0, 'last_reset': current_year}
+            
+            if quotas[nik].get('last_reset') != current_year:
+                quotas[nik] = {'used': 0, 'last_reset': current_year}
+            
+            quotas[nik]['used'] += 1
+            
+            import base64
+            content = base64.b64encode(json.dumps({'quotas': quotas}, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Update user quota {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
+            }
+            
+            response = requests.put(url, headers=self.headers, json=data)
+            return response.status_code in [200, 201]
+        except Exception as e:
+            print(f"Error update user quota: {e}")
+            return False
+    
+    def reset_all_quotas(self) -> bool:
+        """Reset semua kuota"""
+        try:
+            url = f"{self.base_url}/data/user_quotas.json"
+            
+            response = requests.get(url, headers=self.headers)
+            sha = response.json().get('sha') if response.status_code == 200 else None
+            
+            import base64
+            content = base64.b64encode(json.dumps({'quotas': {}}, indent=2).encode()).decode()
+            
+            data = {
+                'message': f'Reset all quotas {datetime.now().isoformat()}',
+                'content': content,
+                'sha': sha
+            }
+            
+            response = requests.put(url, headers=self.headers, json=data)
+            return response.status_code in [200, 201]
+        except Exception as e:
+            print(f"Error reset quotas: {e}")
+            return False
+    
+    def change_admin_password(self, old_pass: str, new_pass: str) -> bool:
+        """Ganti password admin (simulasi)"""
+        # Implementasi sesuai kebutuhan
+        return True

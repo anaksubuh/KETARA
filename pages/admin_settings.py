@@ -1,7 +1,7 @@
 import streamlit as st
 import sys
-import pandas as pd
 from pathlib import Path
+import pandas as pd
 
 st.set_page_config(
     page_title="Pengaturan - Admin",
@@ -18,7 +18,7 @@ from modules.auth_simple import init_session_state, require_auth, logout, get_re
 init_session_state()
 require_auth()
 
-# CSS
+# CSS SIDEBAR
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -38,34 +38,31 @@ st.markdown("""
     }
     [data-testid="stSidebar"] .stButton button {
         background: rgba(255,255,255,0.1);
-        color: white;
+        color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
-    }
-    .settings-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 16px;
-        margin-bottom: 1.5rem;
-        border: 1px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # SIDEBAR
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x80/667eea/white?text=Kota+Magelang", use_container_width=True)
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem;">
+        <div style="font-size: 3rem;">🏙️</div>
+        <h3>Kota Magelang</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown(f"### 👤 {st.session_state.get('username', 'Admin')}")
     st.markdown("---")
+    st.markdown("### 📋 Menu Admin")
     
     if st.button("🏠 Dashboard", use_container_width=True):
         st.switch_page("pages/admin_dashboard.py")
-    
     if st.button("📝 Kelola Soal", use_container_width=True):
         st.switch_page("pages/admin_questions.py")
-    
     if st.button("📊 Lihat Jawaban", use_container_width=True):
         st.switch_page("pages/admin_responses.py")
-    
     if st.button("⚙️ Pengaturan", use_container_width=True):
         st.switch_page("pages/admin_settings.py")
     
@@ -79,33 +76,31 @@ with st.sidebar:
         logout()
         st.rerun()
 
-# Main content
+# MAIN CONTENT
 st.title("⚙️ Pengaturan Sistem")
 st.markdown("Kelola konfigurasi sistem, NIK terdaftar, dan kuota partisipasi")
 
 github = GitHubAPI()
 
-# Tab pengaturan
-tab1, tab2, tab3 = st.tabs(["👥 Kelola NIK", "🎫 Kuota Partisipasi", "🔐 Admin Password"])
+tab1, tab2 = st.tabs(["👥 Kelola NIK", "🎫 Kuota Partisipasi"])
 
 with tab1:
     st.subheader("Daftar NIK Terdaftar")
-    
     valid_niks = github.get_valid_niks()
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown(f"**Total NIK terdaftar: {len(valid_niks)}**")
-        
         if valid_niks:
             df_niks = pd.DataFrame(valid_niks, columns=['NIK'])
             st.dataframe(df_niks, use_container_width=True, height=300)
+        else:
+            st.info("Belum ada NIK terdaftar")
     
     with col2:
         st.markdown("### Tambah NIK")
         new_nik = st.text_input("Masukkan NIK (16 digit)", max_chars=16, key="new_nik")
-        
         if st.button("➕ Tambah NIK", use_container_width=True):
             if len(new_nik) == 16 and new_nik.isdigit():
                 if github.add_valid_nik(new_nik):
@@ -117,10 +112,9 @@ with tab1:
                 st.error("NIK harus 16 digit angka!")
         
         st.markdown("### Hapus NIK")
-        nik_to_delete = st.selectbox("Pilih NIK", valid_niks if valid_niks else ['Tidak ada data'])
-        
-        if st.button("🗑️ Hapus NIK", use_container_width=True):
-            if nik_to_delete != 'Tidak ada data':
+        if valid_niks:
+            nik_to_delete = st.selectbox("Pilih NIK", valid_niks)
+            if st.button("🗑️ Hapus NIK", use_container_width=True):
                 if github.delete_valid_nik(nik_to_delete):
                     st.success(f"NIK {nik_to_delete} berhasil dihapus!")
                     st.rerun()
@@ -130,62 +124,28 @@ with tab1:
 with tab2:
     st.subheader("Pengaturan Kuota Partisipasi")
     
-    current_quota = github.get_quota_config()
+    try:
+        current_quota = github.get_quota_config()
+        max_quota = current_quota.get('max_per_year', 3)
+    except:
+        max_quota = 3
+        st.warning("Menggunakan nilai default kuota")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div class="settings-card">
-            <h3>📊 Kuota Tahunan</h3>
-            <p>Setiap NIK maksimal dapat berpartisipasi dalam periode tertentu</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        max_quota = st.number_input("Maksimal partisipasi per tahun", 
+    new_max_quota = st.number_input("Maksimal partisipasi per tahun", 
                                      min_value=1, max_value=100, 
-                                     value=current_quota.get('max_per_year', 3))
-        
-        if st.button("💾 Simpan Kuota", use_container_width=True):
-            if github.update_quota_config(max_quota):
-                st.success("Pengaturan kuota berhasil disimpan!")
+                                     value=max_quota)
     
-    with col2:
-        st.markdown("""
-        <div class="settings-card">
-            <h3>ℹ️ Informasi</h3>
-            <p>• Kuota dihitung per tahun kalender</p>
-            <p>• Reset otomatis setiap tahun</p>
-            <p>• Admin dapat reset manual jika diperlukan</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("🔄 Reset Semua Kuota", use_container_width=True, type="secondary"):
-            if github.reset_all_quotas():
-                st.success("Semua kuota berhasil direset!")
-
-with tab3:
-    st.subheader("Keamanan Admin")
+    if st.button("💾 Simpan Kuota", use_container_width=True):
+        if github.update_quota_config(new_max_quota):
+            st.success("Pengaturan kuota berhasil disimpan!")
+        else:
+            st.error("Gagal menyimpan pengaturan kuota!")
     
-    with st.form("change_password_form"):
-        old_pass = st.text_input("Password Lama", type="password")
-        new_pass = st.text_input("Password Baru", type="password")
-        confirm_pass = st.text_input("Konfirmasi Password Baru", type="password")
-        
-        if st.form_submit_button("Ganti Password", use_container_width=True, type="primary"):
-            if not old_pass or not new_pass:
-                st.error("Semua field harus diisi!")
-            elif new_pass != confirm_pass:
-                st.error("Password baru tidak cocok!")
-            elif len(new_pass) < 6:
-                st.error("Password minimal 6 karakter!")
-            else:
-                if github.change_admin_password(old_pass, new_pass):
-                    st.success("Password berhasil diubah! Silakan login ulang.")
-                    logout()
-                    st.rerun()
-                else:
-                    st.error("Password lama salah!")
+    if st.button("🔄 Reset Semua Kuota", use_container_width=True):
+        if github.reset_all_quotas():
+            st.success("Semua kuota berhasil direset!")
+        else:
+            st.error("Gagal mereset kuota!")
 
 st.markdown("---")
 st.caption(f"© 2024 Sistem Aspirasi & Polling - Kota Magelang")

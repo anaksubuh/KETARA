@@ -1,8 +1,6 @@
 import streamlit as st
 import sys
 from pathlib import Path
-import pandas as pd
-from datetime import datetime
 
 st.set_page_config(
     page_title="Kelola Soal - Admin",
@@ -19,7 +17,7 @@ from modules.auth_simple import init_session_state, require_auth, logout, get_re
 init_session_state()
 require_auth()
 
-# CSS untuk sidebar dan main content
+# CSS SIDEBAR
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -39,34 +37,31 @@ st.markdown("""
     }
     [data-testid="stSidebar"] .stButton button {
         background: rgba(255,255,255,0.1);
-        color: white;
+        color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
-    }
-    .question-card {
-        background: white;
-        padding: 1rem;
-        border-radius: 12px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #667eea;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # SIDEBAR
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x80/667eea/white?text=Kota+Magelang", use_container_width=True)
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem;">
+        <div style="font-size: 3rem;">🏙️</div>
+        <h3>Kota Magelang</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown(f"### 👤 {st.session_state.get('username', 'Admin')}")
     st.markdown("---")
+    st.markdown("### 📋 Menu Admin")
     
     if st.button("🏠 Dashboard", use_container_width=True):
         st.switch_page("pages/admin_dashboard.py")
-    
     if st.button("📝 Kelola Soal", use_container_width=True):
         st.switch_page("pages/admin_questions.py")
-    
     if st.button("📊 Lihat Jawaban", use_container_width=True):
         st.switch_page("pages/admin_responses.py")
-    
     if st.button("⚙️ Pengaturan", use_container_width=True):
         st.switch_page("pages/admin_settings.py")
     
@@ -80,13 +75,12 @@ with st.sidebar:
         logout()
         st.rerun()
 
-# Main content
+# MAIN CONTENT
 st.title("📝 Kelola Soal Polling")
 st.markdown("Buat, edit, dan atur status soal polling untuk warga Kota Magelang")
 
 github = GitHubAPI()
 
-# Tab untuk list dan tambah soal
 tab1, tab2 = st.tabs(["📋 Daftar Soal", "➕ Tambah Soal Baru"])
 
 with tab1:
@@ -96,31 +90,26 @@ with tab1:
         st.info("Belum ada soal. Silakan tambah soal baru di tab 'Tambah Soal Baru'")
     else:
         for q in questions:
-            with st.container():
-                col1, col2, col3 = st.columns([6, 1, 1])
-                
-                with col1:
-                    status = "🟢 Aktif" if q.get('is_active', True) else "🔴 Nonaktif"
-                    st.markdown(f"""
-                    <div class="question-card">
-                        <strong>❓ {q['question']}</strong><br>
-                        📊 Opsi: {q['option_left']} vs {q['option_right']}<br>
-                        🏷️ Status: {status}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    new_status = not q.get('is_active', True)
-                    status_text = "Aktifkan" if new_status else "Nonaktifkan"
-                    if st.button(f"{status_text}", key=f"toggle_{q['id']}"):
-                        github.update_question_status(q['id'], new_status)
+            col1, col2, col3 = st.columns([6, 1, 1])
+            with col1:
+                status = "🟢 Aktif" if q.get('is_active', True) else "🔴 Nonaktif"
+                st.markdown(f"""
+                **❓ {q['question']}**  
+                📊 Opsi: {q['option_left']} vs {q['option_right']}  
+                🏷️ Status: {status}
+                """)
+            with col2:
+                new_status = not q.get('is_active', True)
+                status_text = "Aktifkan" if new_status else "Nonaktifkan"
+                if st.button(f"{status_text}", key=f"toggle_{q['id']}"):
+                    github.update_question_status(q['id'], new_status)
+                    st.rerun()
+            with col3:
+                if st.button(f"🗑️ Hapus", key=f"delete_{q['id']}"):
+                    if github.delete_question(q['id']):
+                        st.success("Soal berhasil dihapus!")
                         st.rerun()
-                
-                with col3:
-                    if st.button("🗑️ Hapus", key=f"delete_{q['id']}"):
-                        if github.delete_question(q['id']):
-                            st.success("Soal berhasil dihapus!")
-                            st.rerun()
+            st.markdown("---")
 
 with tab2:
     with st.form("add_question_form"):
