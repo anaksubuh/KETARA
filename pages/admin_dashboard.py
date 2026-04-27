@@ -16,30 +16,6 @@ from modules.auth_simple import init_session_state, require_auth, logout, get_re
 init_session_state()
 require_auth()
 
-# CSS sidebar (sama seperti dashboard)
-st.markdown("""
-<style>
-    header { display: none !important; }
-    .stApp header { display: none !important; }
-    [data-testid="stToolbar"] { display: none !important; }
-    footer { display: none !important; }
-    .stAppDeployButton { display: none !important; }
-    .main > div { padding-top: 0rem; }
-    
-    [data-testid="stSidebar"] { 
-        display: block !important;
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Sidebar
 with st.sidebar:
     st.markdown("""
