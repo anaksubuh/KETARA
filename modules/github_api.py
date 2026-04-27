@@ -7,28 +7,39 @@ import streamlit as st
 
 class GitHubAPI:
     def __init__(self):
+        # Baca secrets dari Streamlit Cloud atau file .streamlit/secrets.toml
         try:
-            self.token = st.secrets.get("GITHUB_TOKEN", "")
-            self.repo = st.secrets.get("GITHUB_REPO", "")
-        except:
-            self.token = ""
-            self.repo = ""
-        
-        # Validasi token dan repo
-        if not self.token or not self.repo:
-            st.error("❌ GitHub token atau repository tidak dikonfigurasi di secrets.toml")
+            token = st.secrets.get("GITHUB_TOKEN", "")
+            owner = st.secrets.get("REPO_OWNER", "")
+            repo_name = st.secrets.get("REPO_NAME", "")
+        except Exception as e:
+            st.error(f"Gagal membaca secrets: {e}")
+            token = ""
+            owner = ""
+            repo_name = ""
+
+        # Validasi keberadaan token dan nama repo
+        if not token:
+            st.error("❌ GITHUB_TOKEN tidak ditemukan di secrets. Periksa konfigurasi Streamlit Secrets.")
             self.valid = False
             return
-        else:
-            self.valid = True
-        
+        if not owner or not repo_name:
+            st.error("❌ REPO_OWNER atau REPO_NAME tidak ditemukan di secrets. Pastikan formatnya benar.")
+            self.valid = False
+            return
+
+        # Gabungkan owner dan repo_name menjadi "owner/repo"
+        self.repo = f"{owner}/{repo_name}"
+        self.token = token
+
         self.base_url = f"https://api.github.com/repos/{self.repo}/contents"
         self.headers = {
             "Authorization": f"token {self.token}",
             "Accept": "application/vnd.github.v3+json"
         }
+        self.valid = True
         self._init_data_files()
-    
+
     def _init_data_files(self):
         if not self.valid:
             return
@@ -50,7 +61,7 @@ class GitHubAPI:
                         st.warning(f"Gagal inisialisasi {file_path}: {put_resp.status_code}")
             except Exception as e:
                 st.warning(f"Error init {file_path}: {e}")
-    
+
     def _get_file(self, path):
         if not self.valid:
             return {'data': None, 'sha': None}
@@ -67,7 +78,7 @@ class GitHubAPI:
         except Exception as e:
             st.error(f"Error membaca {path}: {e}")
             return {'data': None, 'sha': None}
-    
+
     def _save_file(self, path, data, sha=None):
         if not self.valid:
             st.error("GitHub tidak terkonfigurasi dengan benar.")
@@ -87,12 +98,12 @@ class GitHubAPI:
         except Exception as e:
             st.error(f"Error menyimpan {path}: {e}")
             return False
-    
+
     # ========== SOAL ==========
     def get_all_questions(self) -> List[Dict]:
         res = self._get_file("data/questions.json")
         return res['data'].get('questions', []) if res['data'] else []
-    
+
     def add_question(self, question: str, option_left: str, option_right: str, is_active: bool = True) -> bool:
         res = self._get_file("data/questions.json")
         if res['data'] is None:
@@ -115,7 +126,7 @@ class GitHubAPI:
         else:
             st.error("Gagal menyimpan soal ke GitHub. Periksa koneksi dan token.")
         return success
-    
+
     def update_question(self, qid: int, question: str, option_left: str, option_right: str, is_active: bool) -> bool:
         res = self._get_file("data/questions.json")
         if not res['data']:
@@ -134,7 +145,7 @@ class GitHubAPI:
             st.error(f"Soal dengan ID {qid} tidak ditemukan.")
             return False
         return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
-    
+
     def update_question_status(self, qid: int, is_active: bool) -> bool:
         res = self._get_file("data/questions.json")
         if not res['data']:
@@ -145,19 +156,19 @@ class GitHubAPI:
                 q['is_active'] = is_active
                 break
         return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
-    
+
     def delete_question(self, qid: int) -> bool:
         res = self._get_file("data/questions.json")
         if not res['data']:
             return False
         questions = [q for q in res['data']['questions'] if q['id'] != qid]
         return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
-    
+
     # ========== RESPONSES ==========
     def get_all_responses(self) -> List[Dict]:
         res = self._get_file("data/responses.json")
         return res['data'].get('responses', []) if res['data'] else []
-    
+
     def save_response(self, nik: str, responses_list: List[Dict], aspirasi: str = "") -> bool:
         res = self._get_file("data/responses.json")
         all_resp = res['data'].get('responses', []) if res['data'] else []
@@ -172,36 +183,36 @@ class GitHubAPI:
         if saved:
             self._update_user_quota(nik)
         return saved
-    
+
     # ========== NIK ==========
     def get_valid_niks(self) -> List[str]:
         res = self._get_file("data/valid_niks.json")
         return res['data'].get('niks', []) if res['data'] else []
-    
+
     def add_valid_nik(self, nik: str) -> bool:
         res = self._get_file("data/valid_niks.json")
         niks = res['data'].get('niks', []) if res['data'] else []
         if nik not in niks:
             niks.append(nik)
         return self._save_file("data/valid_niks.json", {"niks": niks}, res['sha'])
-    
+
     def delete_valid_nik(self, nik: str) -> bool:
         res = self._get_file("data/valid_niks.json")
         if not res['data']:
             return False
         niks = [n for n in res['data']['niks'] if n != nik]
         return self._save_file("data/valid_niks.json", {"niks": niks}, res['sha'])
-    
+
     # ========== KUOTA ==========
     def get_quota_config(self) -> Dict:
         res = self._get_file("data/quota_config.json")
         return res['data'] if res['data'] else {'max_per_year': 3}
-    
+
     def update_quota_config(self, max_per_year: int) -> bool:
         res = self._get_file("data/quota_config.json")
         config = {'max_per_year': max_per_year, 'updated_at': datetime.now().isoformat()}
         return self._save_file("data/quota_config.json", config, res['sha'])
-    
+
     def get_user_quota(self, nik: str) -> Dict:
         res = self._get_file("data/user_quotas.json")
         quotas = res['data'].get('quotas', {}) if res['data'] else {}
@@ -217,7 +228,7 @@ class GitHubAPI:
             'remaining': max_q - used,
             'can_submit': used < max_q
         }
-    
+
     def _update_user_quota(self, nik: str) -> bool:
         res = self._get_file("data/user_quotas.json")
         quotas = res['data'].get('quotas', {}) if res['data'] else {}
@@ -226,7 +237,7 @@ class GitHubAPI:
             quotas[nik] = {'used': 0, 'last_reset': current_year}
         quotas[nik]['used'] = quotas[nik].get('used', 0) + 1
         return self._save_file("data/user_quotas.json", {"quotas": quotas}, res['sha'])
-    
+
     def reset_all_quotas(self) -> bool:
         res = self._get_file("data/user_quotas.json")
         return self._save_file("data/user_quotas.json", {"quotas": {}}, res['sha'])
