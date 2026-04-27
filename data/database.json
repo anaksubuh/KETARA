@@ -1,0 +1,10 @@
+{
+  "questions": [],
+  "responses": [],
+  "valid_niks": [],
+  "quota_config": {
+    "max_per_year": 10,
+    "updated_at": "2026-04-27T06:46:32.517060"
+  },
+  "user_quotas": {}
+}
