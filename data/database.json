@@ -36,6 +36,25 @@
         }
       ],
       "aspirasi": "yh fifty fifty ajh"
+    },
+    {
+      "nik": "1111111111111111",
+      "submitted_at": "2026-04-27T12:45:10.820363",
+      "responses": [
+        {
+          "question_id": 1,
+          "question": "Kebijakan Kenaikan Pajak Rokok dan Vape\n\nKebijakan ini bertujuan untuk menekan konsumsi rokok dan vape yang masih tinggi, khususnya pada kelompok usia produktif, serta mengurangi beban kesehatan masyarakat. Pemerintah mengusulkan kenaikan pajak rokok dari 40% menjadi 55% dan pajak vape dari 30% menjadi 50%, disertai peningkatan harga minimum produk tembakau sebesar 20%.\n\nSecara konseptual, kebijakan ini didasarkan pada prinsip bahwa kenaikan harga dapat menurunkan tingkat konsumsi (price mechanism), terutama pada kelompok rentan seperti remaja. Selain itu, kebijakan ini juga diarahkan untuk meningkatkan penerimaan negara, di mana 30% dari tambahan pajak dialokasikan untuk layanan kesehatan dan program edukasi anti-rokok.\n",
+          "answer": "\u274c Tidak Setuju",
+          "value": "tidak_setuju"
+        },
+        {
+          "question_id": 2,
+          "question": "Kebijakan Sanksi untuk Petugas yang Tidak Ramah\n\nKebijakan ini bertujuan untuk meningkatkan kualitas pelayanan publik serta menciptakan pengalaman layanan yang lebih manusiawi, adil, dan profesional bagi masyarakat. Dalam implementasinya, pemerintah menetapkan bahwa petugas pelayanan publik yang terbukti bersikap tidak ramah, diskriminatif, atau tidak profesional seperti berbicara kasar, mengabaikan masyarakat, atau tidak memberikan informasi dengan jelas, akan dikenakan sanksi administratif secara bertahap. Sanksi tersebut dapat berupa teguran tertulis, penilaian kinerja yang diturunkan, hingga pembinaan ulang atau rotasi jabatan.",
+          "answer": "\u2705 Setuju",
+          "value": "setuju"
+        }
+      ],
+      "aspirasi": "Infrastruktur jalan lebih diperhatikan"
     }
   ],
   "valid_niks": [
