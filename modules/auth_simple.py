@@ -1,126 +1,81 @@
 import streamlit as st
-import uuid
 from datetime import datetime, timedelta
+import hashlib
+import time
 
-# ========== KONFIGURASI SESSION ==========
-SESSION_DURATION_MINUTES = 10
+# Dummy admin credentials (bisa diganti dengan database nanti)
+ADMIN_CREDENTIALS = {
+    'admin': hashlib.sha256('admin123'.encode()).hexdigest()
+}
 
-# CREDENTIALS
-ADMIN_USERNAME = "hahahihi"
-ADMIN_PASSWORD = "mungedan123#"
+SESSION_DURATION = timedelta(hours=8)
 
 def init_session_state():
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
+    """Inisialisasi session state"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
     if 'username' not in st.session_state:
         st.session_state.username = None
-    if 'role' not in st.session_state:
-        st.session_state.role = None
-    if 'token' not in st.session_state:
-        st.session_state.token = None
-    if 'session_id' not in st.session_state:
-        st.session_state.session_id = None
     if 'login_time' not in st.session_state:
         st.session_state.login_time = None
     if 'expiry_time' not in st.session_state:
         st.session_state.expiry_time = None
 
-def check_token_from_url():
-    query_params = st.query_params
-    
-    if st.session_state.get('logged_in', False):
-        if st.session_state.expiry_time:
-            if datetime.now() < st.session_state.expiry_time:
-                return True
-            else:
-                logout()
-                return False
-        return True
-    
-    if 'token' in query_params:
-        token = query_params['token']
-        try:
-            parts = token.split('|')
-            if len(parts) >= 3:
-                username = parts[0]
-                session_id = parts[1]
-                expiry_time_str = parts[2]
-                
-                expiry_time = datetime.fromisoformat(expiry_time_str)
-                if datetime.now() < expiry_time:
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    st.session_state.role = "admin"
-                    st.session_state.token = token
-                    st.session_state.session_id = session_id
-                    st.session_state.login_time = datetime.now()
-                    st.session_state.expiry_time = expiry_time
-                    return True
-                else:
-                    st.query_params.clear()
-                    return False
-        except Exception as e:
-            pass
-    
+def verify_password(username, password):
+    """Verifikasi username dan password"""
+    if username in ADMIN_CREDENTIALS:
+        hashed = hashlib.sha256(password.encode()).hexdigest()
+        return hashed == ADMIN_CREDENTIALS[username]
     return False
 
 def login(username, password):
-    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        session_id = str(uuid.uuid4())
-        login_time = datetime.now()
-        expiry_time = login_time + timedelta(minutes=SESSION_DURATION_MINUTES)
-        
-        token = f"{username}|{session_id}|{expiry_time.isoformat()}"
-        
-        st.session_state.logged_in = True
+    """Proses login"""
+    if verify_password(username, password):
+        st.session_state.authenticated = True
         st.session_state.username = username
-        st.session_state.role = "admin"
-        st.session_state.token = token
-        st.session_state.session_id = session_id
-        st.session_state.login_time = login_time
-        st.session_state.expiry_time = expiry_time
-        
-        st.query_params["token"] = token
-        
-        return True, f"Login berhasil! Session berlaku {SESSION_DURATION_MINUTES} menit"
-    
-    return False, "Username atau password salah!"
+        st.session_state.login_time = datetime.now()
+        st.session_state.expiry_time = datetime.now() + SESSION_DURATION
+        return True
+    return False
 
 def logout():
-    st.session_state.logged_in = False
+    """Proses logout"""
+    st.session_state.authenticated = False
     st.session_state.username = None
-    st.session_state.role = None
-    st.session_state.token = None
-    st.session_state.session_id = None
     st.session_state.login_time = None
     st.session_state.expiry_time = None
-    
-    st.query_params.clear()
-    st.rerun()
+
+def is_session_valid():
+    """Cek apakah session masih valid"""
+    if not st.session_state.authenticated:
+        return False
+    if st.session_state.expiry_time and datetime.now() > st.session_state.expiry_time:
+        logout()
+        return False
+    return True
 
 def require_auth():
-    if st.session_state.get('logged_in', False):
-        if st.session_state.expiry_time:
-            if datetime.now() < st.session_state.expiry_time:
-                return
-            else:
-                logout()
-                st.warning("⏰ Session telah berakhir. Silakan login kembali.")
-                st.stop()
-    
-    if not check_token_from_url():
-        st.warning("⚠️ Silakan login terlebih dahulu")
+    """Decorator untuk require authentication"""
+    if not is_session_valid():
+        st.warning("⚠️ Silakan login terlebih dahulu!")
+        st.switch_page("pages/admin_login.py")
         st.stop()
-    
-    if st.session_state.get('role') != 'admin':
-        st.error("❌ Anda tidak memiliki akses ke halaman ini")
-        st.stop()
+    return True
 
 def get_remaining_time():
+    """Dapatkan sisa waktu session"""
     if st.session_state.expiry_time:
-        remaining = (st.session_state.expiry_time - datetime.now()).total_seconds()
-        if remaining > 0:
-            minutes = int(remaining // 60)
-            seconds = int(remaining % 60)
+        remaining = st.session_state.expiry_time - datetime.now()
+        if remaining.total_seconds() > 0:
+            minutes = int(remaining.total_seconds() // 60)
+            seconds = int(remaining.total_seconds() % 60)
             return minutes, seconds
     return 0, 0
+
+def check_token_from_url():
+    """Cek token dari URL (untuk auto-login via link)"""
+    query_params = st.query_params
+    if 'token' in query_params and query_params['token'] == 'admin_secret_2024':
+        if not st.session_state.authenticated:
+            login('admin', 'admin123')
+            st.rerun()

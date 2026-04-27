@@ -4,22 +4,18 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from modules.auth_simple import init_session_state, check_token_from_url, login
+from modules.auth_simple import init_session_state, login
 
 # Konfigurasi halaman - HARUS PERTAMA
 st.set_page_config(
-    page_title="Admin Login",
+    page_title="Admin Login - Kota Magelang",
     page_icon="🔐",
     layout="centered",
     initial_sidebar_state="collapsed",
-    menu_items={
-        'Get Help': None,
-        'Report a bug': None,
-        'About': None
-    }
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
-# Sembunyikan elemen bawaan
+# Hilangkan semua elemen termasuk sidebar (halaman login tidak butuh sidebar)
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -27,41 +23,55 @@ st.markdown("""
     [data-testid="stToolbar"] { display: none !important; }
     footer { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+    [data-testid="stSidebar"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
     .main > div { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# Inisialisasi
+# Custom CSS untuk login form
+st.markdown("""
+<style>
+    .login-box {
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        margin-top: 3rem;
+    }
+    .login-title {
+        text-align: center;
+        color: #1a1a2e;
+        margin-bottom: 2rem;
+    }
+    .login-icon {
+        text-align: center;
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 init_session_state()
-check_token_from_url()
 
-# Jika sudah login, redirect ke dashboard
-if st.session_state.get('logged_in', False):
-    st.success(f"✅ Anda sudah login sebagai {st.session_state.username}")
-    if st.button("🚀 Buka Dashboard Admin", use_container_width=True):
-        st.switch_page("pages/admin_dashboard.py")
-    st.stop()
-
-with st.form("login_form"):
-    username = st.text_input("Username", placeholder="hahahihi", key="login_user")
-    password = st.text_input("Password", type="password", placeholder="********", key="login_pass")
+# Login form
+col1, col2, col3 = st.columns([1,2,1])
+with col2:
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+    st.markdown('<div class="login-icon">🔐</div>', unsafe_allow_html=True)
+    st.markdown('<h2 class="login-title">Admin Login<br>Kota Magelang</h2>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        submitted = st.form_submit_button("Login", use_container_width=True, type="primary")
-    with col2:
-        if st.form_submit_button("Kembali", use_container_width=True):
-            st.switch_page("pages/user.py")
-
-if submitted:
-    if username and password:
-        success, message = login(username, password)
-        if success:
-            st.success(message)
-            st.balloons()
-            st.rerun()
+    username = st.text_input("Username", key="admin_user", placeholder="admin")
+    password = st.text_input("Password", type="password", key="admin_pass", placeholder="••••••")
+    
+    if st.button("Login", use_container_width=True, type="primary"):
+        if login(username, password):
+            st.switch_page("pages/admin_dashboard.py")
         else:
-            st.error(message)
-    else:
-        st.warning("Harap isi username dan password")
+            st.error("❌ Username atau password salah!")
+    
+    st.markdown('<p style="text-align: center; margin-top: 1rem; color: #666; font-size: 0.8rem;">Demo: admin / admin123</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)

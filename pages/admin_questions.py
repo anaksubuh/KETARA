@@ -1,10 +1,11 @@
 import streamlit as st
 import sys
 from pathlib import Path
+import pandas as pd
+from datetime import datetime
 
-# Konfigurasi halaman - HARUS PERTAMA
 st.set_page_config(
-    page_title="Admin - Kelola Soal",
+    page_title="Kelola Soal - Admin",
     page_icon="📝",
     layout="wide",
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
@@ -13,14 +14,12 @@ st.set_page_config(
 sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.github_api import GitHubAPI
-from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time
+from modules.auth_simple import init_session_state, require_auth, logout, get_remaining_time
 
-# Inisialisasi session
 init_session_state()
-check_token_from_url()
 require_auth()
 
-# Sembunyikan elemen bawaan
+# CSS untuk sidebar dan main content
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -30,25 +29,48 @@ st.markdown("""
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
     .main > div { padding-top: 0rem; }
+    
+    [data-testid="stSidebar"] { 
+        display: block !important;
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    .question-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        border-left: 4px solid #667eea;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar untuk admin
+# SIDEBAR
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
+    st.image("https://via.placeholder.com/200x80/667eea/white?text=Kota+Magelang", use_container_width=True)
+    st.markdown(f"### 👤 {st.session_state.get('username', 'Admin')}")
     st.markdown("---")
     
-    if st.button("📊 Dashboard", use_container_width=True):
+    if st.button("🏠 Dashboard", use_container_width=True):
         st.switch_page("pages/admin_dashboard.py")
+    
     if st.button("📝 Kelola Soal", use_container_width=True):
         st.switch_page("pages/admin_questions.py")
+    
     if st.button("📊 Lihat Jawaban", use_container_width=True):
         st.switch_page("pages/admin_responses.py")
+    
     if st.button("⚙️ Pengaturan", use_container_width=True):
         st.switch_page("pages/admin_settings.py")
     
     st.markdown("---")
-    
     minutes, seconds = get_remaining_time()
     if minutes > 0 or seconds > 0:
         st.info(f"⏰ Session: {minutes}m {seconds}s")
@@ -56,73 +78,73 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, type="primary"):
         logout()
+        st.rerun()
 
+# Main content
 st.title("📝 Kelola Soal Polling")
+st.markdown("Buat, edit, dan atur status soal polling untuk warga Kota Magelang")
 
 github = GitHubAPI()
 
-# Tombol tambah
-if st.button("➕ Tambah Soal Baru", use_container_width=True):
-    st.session_state.show_add = not st.session_state.get('show_add', False)
+# Tab untuk list dan tambah soal
+tab1, tab2 = st.tabs(["📋 Daftar Soal", "➕ Tambah Soal Baru"])
 
-# Form tambah
-if st.session_state.get('show_add', False):
-    with st.form("add_form"):
-        soal = st.text_area("Soal", height=80, placeholder="Contoh: 2 + 2 = 4")
+with tab1:
+    questions = github.get_all_questions()
+    
+    if not questions:
+        st.info("Belum ada soal. Silakan tambah soal baru di tab 'Tambah Soal Baru'")
+    else:
+        for q in questions:
+            with st.container():
+                col1, col2, col3 = st.columns([6, 1, 1])
+                
+                with col1:
+                    status = "🟢 Aktif" if q.get('is_active', True) else "🔴 Nonaktif"
+                    st.markdown(f"""
+                    <div class="question-card">
+                        <strong>❓ {q['question']}</strong><br>
+                        📊 Opsi: {q['option_left']} vs {q['option_right']}<br>
+                        🏷️ Status: {status}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    new_status = not q.get('is_active', True)
+                    status_text = "Aktifkan" if new_status else "Nonaktifkan"
+                    if st.button(f"{status_text}", key=f"toggle_{q['id']}"):
+                        github.update_question_status(q['id'], new_status)
+                        st.rerun()
+                
+                with col3:
+                    if st.button("🗑️ Hapus", key=f"delete_{q['id']}"):
+                        if github.delete_question(q['id']):
+                            st.success("Soal berhasil dihapus!")
+                            st.rerun()
+
+with tab2:
+    with st.form("add_question_form"):
+        st.subheader("Form Tambah Soal Baru")
+        
+        question_text = st.text_area("Soal / Pertanyaan", placeholder="Contoh: Apakah Anda setuju dengan pembangunan taman kota?")
+        
         col1, col2 = st.columns(2)
         with col1:
-            kiri = st.text_input("Pilihan Kiri", value="✅ Setuju")
+            option_left = st.text_input("Opsi Kiri (Setuju)", placeholder="Setuju")
         with col2:
-            kanan = st.text_input("Pilihan Kanan", value="❌ Tidak Setuju")
+            option_right = st.text_input("Opsi Kanan (Tidak Setuju)", placeholder="Tidak Setuju")
         
-        if st.form_submit_button("💾 Simpan"):
-            if soal.strip():
-                new = {'question': soal.strip(), 'option_left': kiri, 'option_right': kanan, 'is_active': True}
-                if github.add_question(new):
-                    st.success("Berhasil!")
-                    st.session_state.show_add = False
+        is_active = st.checkbox("Aktifkan soal ini sekarang", value=True)
+        
+        if st.form_submit_button("Simpan Soal", use_container_width=True, type="primary"):
+            if not question_text:
+                st.error("Soal harus diisi!")
+            elif not option_left or not option_right:
+                st.error("Kedua opsi harus diisi!")
+            else:
+                success = github.add_question(question_text, option_left, option_right, is_active)
+                if success:
+                    st.success("Soal berhasil ditambahkan!")
                     st.rerun()
-
-st.markdown("---")
-st.subheader("📋 Daftar Soal")
-
-for q in github.get_all_questions():
-    with st.container():
-        st.markdown(f"**{q.get('order', q['id'])}. {q['question']}**")
-        st.caption(f"{q['option_left']} | {q['option_right']}")
-        st.caption(f"Status: {'🟢 Aktif' if q.get('is_active', True) else '🔴 Nonaktif'}")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Toggle Status", key=f"toggle_{q['id']}"):
-                github.toggle_question_active(q['id'])
-                st.rerun()
-        with col2:
-            if st.button("Edit", key=f"edit_{q['id']}"):
-                st.session_state[f"edit_{q['id']}"] = True
-        with col3:
-            if st.button("Hapus", key=f"del_{q['id']}"):
-                if github.delete_question(q['id']):
-                    st.rerun()
-        
-        if st.session_state.get(f"edit_{q['id']}", False):
-            with st.form(key=f"edit_{q['id']}"):
-                edit_soal = st.text_area("Soal", value=q['question'])
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    edit_kiri = st.text_input("Pilihan Kiri", value=q['option_left'])
-                with col_e2:
-                    edit_kanan = st.text_input("Pilihan Kanan", value=q['option_right'])
-                
-                if st.form_submit_button("Update"):
-                    updated = {
-                        'question': edit_soal,
-                        'option_left': edit_kiri,
-                        'option_right': edit_kanan,
-                        'is_active': q.get('is_active', True)
-                    }
-                    if github.update_question(q['id'], updated):
-                        st.session_state[f"edit_{q['id']}"] = False
-                        st.rerun()
-        
-        st.markdown("---")
+                else:
+                    st.error("Gagal menambahkan soal!")

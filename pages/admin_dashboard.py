@@ -8,7 +8,7 @@ from datetime import datetime
 # Konfigurasi halaman - HARUS PERTAMA
 st.set_page_config(
     page_title="Admin Dashboard - Kota Magelang",
-    page_icon="👨‍💼",
+    page_icon="📊",
     layout="wide",
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
@@ -16,16 +16,16 @@ st.set_page_config(
 sys.path.append(str(Path(__file__).parent.parent))
 
 from modules.github_api import GitHubAPI
-from modules.auth_simple import init_session_state, check_token_from_url, require_auth, logout, get_remaining_time
+from modules.auth_simple import init_session_state, require_auth, logout, get_remaining_time
 
 # Inisialisasi session
 init_session_state()
-check_token_from_url()
 require_auth()
 
-# Sembunyikan elemen bawaan
+# HANYA sembunyikan elemen bawaan, TAPI SIDEBAR TETAP MUNCUL
 st.markdown("""
 <style>
+    /* Sembunyikan elemen bawaan saja, biarkan sidebar tetap ada */
     header { display: none !important; }
     .stApp header { display: none !important; }
     [data-testid="stToolbar"] { display: none !important; }
@@ -33,21 +33,51 @@ st.markdown("""
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
     .main > div { padding-top: 0rem; }
+    
+    /* Pastikan sidebar tetap terlihat */
+    [data-testid="stSidebar"] { 
+        display: block !important;
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] p {
+        color: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar untuk admin
+# SIDEBAR - Tetap muncul
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
+    st.image("https://via.placeholder.com/200x80/667eea/white?text=Kota+Magelang", use_container_width=True)
+    st.markdown(f"### 👤 {st.session_state.get('username', 'Admin')}")
+    st.markdown(f"**Role:** Administrator")
     st.markdown("---")
     
-    if st.button("📊 Dashboard", use_container_width=True):
+    st.markdown("### 📋 Menu Admin")
+    
+    if st.button("🏠 Dashboard", use_container_width=True, key="dash_btn"):
         st.switch_page("pages/admin_dashboard.py")
-    if st.button("📝 Kelola Soal", use_container_width=True):
+    
+    if st.button("📝 Kelola Soal", use_container_width=True, key="questions_btn"):
         st.switch_page("pages/admin_questions.py")
-    if st.button("📊 Lihat Jawaban", use_container_width=True):
+    
+    if st.button("📊 Lihat Jawaban", use_container_width=True, key="responses_btn"):
         st.switch_page("pages/admin_responses.py")
-    if st.button("⚙️ Pengaturan", use_container_width=True):
+    
+    if st.button("⚙️ Pengaturan", use_container_width=True, key="settings_btn"):
         st.switch_page("pages/admin_settings.py")
     
     st.markdown("---")
@@ -59,12 +89,13 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, type="primary"):
         logout()
+        st.rerun()
 
-# Custom CSS
+# Main content
 st.markdown("""
 <style>
     .admin-header {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1.5rem;
         border-radius: 16px;
         color: white;
@@ -76,6 +107,10 @@ st.markdown("""
         border-radius: 16px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         text-align: center;
+        transition: transform 0.3s;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
     }
     .stat-number {
         font-size: 2.5rem;
@@ -90,15 +125,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header
 st.markdown("""
 <div class="admin-header">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <h1>🏙️ Dashboard Admin</h1>
-            <p>Selamat datang di panel administrasi Sistem Aspirasi & Polling Kota Magelang</p>
+            <h1>📊 Dashboard Admin</h1>
+            <p>Selamat datang, Administrator! Kelola sistem aspirasi & polling Kota Magelang</p>
         </div>
-        <div style="font-size: 3rem;">📊</div>
+        <div style="font-size: 3rem;">🏙️</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -111,52 +145,75 @@ questions = github.get_all_questions()
 responses = github.get_all_responses()
 valid_niks = github.get_valid_niks()
 
-# ========== STATISTIK ==========
-st.subheader("📊 Statistik Sistem")
-
+# Statistik
 col1, col2, col3, col4, col5 = st.columns(5)
 
-total_responses = len(responses)
-total_questions = len(questions)
-active_questions = len([q for q in questions if q.get('is_active', True)])
-unique_users = len(set([r.get('nik') for r in responses]))
-total_niks = len(valid_niks)
-
 with col1:
-    st.metric("Total Partisipasi", total_responses)
-with col2:
-    st.metric("Total Soal", total_questions)
-with col3:
-    st.metric("Soal Aktif", active_questions)
-with col4:
-    st.metric("Warga Aktif", unique_users)
-with col5:
-    st.metric("NIK Terdaftar", total_niks)
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-number">{len(responses)}</div>
+        <div class="stat-label">Total Partisipasi</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ========== GRAFIK PARTISIPASI ==========
+with col2:
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-number">{len(questions)}</div>
+        <div class="stat-label">Total Soal</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    active = len([q for q in questions if q.get('is_active', True)])
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-number">{active}</div>
+        <div class="stat-label">Soal Aktif</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    unique_users = len(set([r.get('nik') for r in responses]))
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-number">{unique_users}</div>
+        <div class="stat-label">Warga Aktif</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col5:
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-number">{len(valid_niks)}</div>
+        <div class="stat-label">NIK Terdaftar</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Grafik partisipasi
 st.markdown("---")
-st.subheader("📈 Tren Partisipasi")
+st.subheader("📈 Tren Partisipasi per Bulan")
 
 if responses:
     df = pd.DataFrame(responses)
     df['bulan'] = pd.to_datetime(df['submitted_at']).dt.strftime('%Y-%m')
     monthly_counts = df.groupby('bulan').size().reset_index(name='count')
     
-    fig = px.bar(monthly_counts, x='bulan', y='count', 
+    fig = px.bar(monthly_counts, x='bulan', y='count',
                  title="Jumlah Partisipasi per Bulan",
-                 labels={'bulan': 'Bulan', 'count': 'Jumlah Partisipasi'},
+                 labels={'bulan': 'Bulan', 'count': 'Jumlah'},
                  color='count', color_continuous_scale='Blues')
-    fig.update_layout(height=400)
+    fig.update_layout(height=400, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Belum ada data partisipasi")
+    st.info("📭 Belum ada data partisipasi")
 
-# ========== AKTIVITAS TERBARU ==========
+# Aktivitas terbaru
 st.markdown("---")
 st.subheader("📋 Aktivitas Partisipasi Terbaru")
 
 if responses:
-    recent = sorted(responses, key=lambda x: x.get('submitted_at', ''), reverse=True)[:10]
+    recent = sorted(responses, key=lambda x: x.get('submitted_at', ''), reverse=True)[:5]
     for r in recent:
         with st.expander(f"📅 {r.get('submitted_at', '')[:10]} - NIK: {r.get('nik', 'Unknown')}"):
             for ans in r.get('responses', []):
@@ -165,8 +222,7 @@ if responses:
                     st.write(f"Jawaban: {ans.get('answer', '')}")
                     st.write("---")
 else:
-    st.info("Belum ada aktivitas")
+    st.info("📭 Belum ada aktivitas")
 
-# Footer
 st.markdown("---")
-st.caption(f"© 2024 Sistem Aspirasi & Polling - Kota Magelang")
+st.caption(f"© 2024 Sistem Aspirasi & Polling - Kota Magelang | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
