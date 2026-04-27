@@ -11,13 +11,13 @@ class GitHubAPI:
             self.token = st.secrets.get("GITHUB_TOKEN", "")
             owner = st.secrets.get("REPO_OWNER", "")
             repo_name = st.secrets.get("REPO_NAME", "")
-        except:
-            self.token = ""
-            owner = ""
-            repo_name = ""
+        except Exception as e:
+            st.error(f"Gagal baca secrets: {e}")
+            self.valid = False
+            return
 
         if not self.token or not owner or not repo_name:
-            st.error("❌ Secrets tidak lengkap. Periksa GITHUB_TOKEN, REPO_OWNER, REPO_NAME.")
+            st.error("❌ Secrets tidak lengkap. Periksa GITHUB_TOKEN, REPO_OWNER, REPO_NAME")
             self.valid = False
             return
 
@@ -28,14 +28,15 @@ class GitHubAPI:
             "Accept": "application/vnd.github.v3+json"
         }
 
-        # Test koneksi
+        # Test koneksi ke repository
         test_url = f"https://api.github.com/repos/{self.repo}"
         try:
             r = requests.get(test_url, headers=self.headers)
             if r.status_code == 200:
                 self.valid = True
+                st.success(f"✅ Terhubung ke {self.repo}")
             else:
-                st.error(f"❌ Gagal akses repo: {r.status_code} - {r.text[:100]}")
+                st.error(f"❌ Gagal akses repo: {r.status_code}. Periksa nama repo dan token.")
                 self.valid = False
                 return
         except Exception as e:
@@ -43,11 +44,10 @@ class GitHubAPI:
             self.valid = False
             return
 
-        # Inisialisasi database.json jika perlu
+        # Inisialisasi database.json
         self._init_database()
 
     def _init_database(self):
-        """Cek dan buat file database.json jika belum ada"""
         path = "data/database.json"
         url = f"{self.base_url}/{path}"
         resp = requests.get(url, headers=self.headers)
@@ -60,16 +60,18 @@ class GitHubAPI:
                 "user_quotas": {}
             }
             content = base64.b64encode(json.dumps(default_data, indent=2).encode()).decode()
-            put_resp = requests.put(url, headers=self.headers, json={'message': 'Init database', 'content': content})
+            put_resp = requests.put(url, headers=self.headers, json={
+                'message': 'Init database.json',
+                'content': content
+            })
             if put_resp.status_code in [200, 201]:
-                st.success("✅ Database.json berhasil dibuat")
+                st.info("📁 Database.json berhasil dibuat")
             else:
                 st.error(f"❌ Gagal buat database.json: {put_resp.status_code}")
         elif resp.status_code != 200:
-            st.warning(f"⚠️ Status tidak dikenal: {resp.status_code}")
+            st.warning(f"⚠️ Status database: {resp.status_code}")
 
     def _get_database(self):
-        """Ambil seluruh data dari database.json"""
         if not self.valid:
             return None
         url = f"{self.base_url}/data/database.json"
@@ -83,7 +85,6 @@ class GitHubAPI:
             return None
 
     def _save_database(self, data, sha):
-        """Simpan seluruh data ke database.json"""
         if not self.valid:
             return False
         url = f"{self.base_url}/data/database.json"
@@ -92,14 +93,12 @@ class GitHubAPI:
         resp = requests.put(url, headers=self.headers, json=payload)
         return resp.status_code in [200, 201]
 
-    # -------- Metode untuk questions --------
+    # ==================== QUESTIONS ====================
     def get_all_questions(self) -> List[Dict]:
         db = self._get_database()
-        if db:
-            return db['data'].get('questions', [])
-        return []
+        return db['data'].get('questions', []) if db else []
 
-    def add_question(self, question, option_left, option_right, is_active=True):
+    def add_question(self, question: str, option_left: str, option_right: str, is_active: bool = True) -> bool:
         db = self._get_database()
         if not db:
             return False
@@ -115,24 +114,27 @@ class GitHubAPI:
         }
         questions.append(new_q)
         db['data']['questions'] = questions
-        return self._save_database(db['data'], db['sha'])
+        success = self._save_database(db['data'], db['sha'])
+        if success:
+            st.success(f"Soal ditambahkan (ID {new_id})")
+        else:
+            st.error("Gagal simpan soal")
+        return success
 
-    def update_question(self, qid, question, option_left, option_right, is_active):
+    def update_question(self, qid: int, question: str, option_left: str, option_right: str, is_active: bool) -> bool:
         db = self._get_database()
         if not db:
             return False
         for q in db['data']['questions']:
             if q['id'] == qid:
-                q.update({
-                    'question': question,
-                    'option_left': option_left,
-                    'option_right': option_right,
-                    'is_active': is_active
-                })
+                q['question'] = question
+                q['option_left'] = option_left
+                q['option_right'] = option_right
+                q['is_active'] = is_active
                 break
         return self._save_database(db['data'], db['sha'])
 
-    def update_question_status(self, qid, is_active):
+    def update_question_status(self, qid: int, is_active: bool) -> bool:
         db = self._get_database()
         if not db:
             return False
@@ -142,40 +144,40 @@ class GitHubAPI:
                 break
         return self._save_database(db['data'], db['sha'])
 
-    def delete_question(self, qid):
+    def delete_question(self, qid: int) -> bool:
         db = self._get_database()
         if not db:
             return False
         db['data']['questions'] = [q for q in db['data']['questions'] if q['id'] != qid]
         return self._save_database(db['data'], db['sha'])
 
-    # -------- Responses --------
-    def get_all_responses(self):
+    # ==================== RESPONSES ====================
+    def get_all_responses(self) -> List[Dict]:
         db = self._get_database()
         return db['data'].get('responses', []) if db else []
 
-    def save_response(self, nik, responses_list, aspirasi=""):
+    def save_response(self, nik: str, responses_list: List[Dict], aspirasi: str = "") -> bool:
         db = self._get_database()
         if not db:
             return False
-        new_response = {
+        new_entry = {
             'nik': nik,
             'submitted_at': datetime.now().isoformat(),
             'responses': responses_list,
             'aspirasi': aspirasi
         }
-        db['data']['responses'].append(new_response)
+        db['data']['responses'].append(new_entry)
         saved = self._save_database(db['data'], db['sha'])
         if saved:
             self._update_user_quota(nik)
         return saved
 
-    # -------- NIK --------
-    def get_valid_niks(self):
+    # ==================== NIK ====================
+    def get_valid_niks(self) -> List[str]:
         db = self._get_database()
         return db['data'].get('valid_niks', []) if db else []
 
-    def add_valid_nik(self, nik):
+    def add_valid_nik(self, nik: str) -> bool:
         db = self._get_database()
         if not db:
             return False
@@ -184,26 +186,26 @@ class GitHubAPI:
             return self._save_database(db['data'], db['sha'])
         return True
 
-    def delete_valid_nik(self, nik):
+    def delete_valid_nik(self, nik: str) -> bool:
         db = self._get_database()
         if not db:
             return False
         db['data']['valid_niks'] = [n for n in db['data']['valid_niks'] if n != nik]
         return self._save_database(db['data'], db['sha'])
 
-    # -------- Kuota --------
-    def get_quota_config(self):
+    # ==================== KUOTA ====================
+    def get_quota_config(self) -> Dict:
         db = self._get_database()
         return db['data'].get('quota_config', {'max_per_year': 10}) if db else {'max_per_year': 10}
 
-    def update_quota_config(self, max_per_year):
+    def update_quota_config(self, max_per_year: int) -> bool:
         db = self._get_database()
         if not db:
             return False
         db['data']['quota_config'] = {'max_per_year': max_per_year, 'updated_at': datetime.now().isoformat()}
         return self._save_database(db['data'], db['sha'])
 
-    def get_user_quota(self, nik):
+    def get_user_quota(self, nik: str) -> Dict:
         db = self._get_database()
         if not db:
             return {'max': 10, 'used': 0, 'remaining': 10, 'can_submit': True}
@@ -221,7 +223,7 @@ class GitHubAPI:
             'can_submit': used < max_q
         }
 
-    def _update_user_quota(self, nik):
+    def _update_user_quota(self, nik: str) -> bool:
         db = self._get_database()
         if not db:
             return False
@@ -233,7 +235,7 @@ class GitHubAPI:
         db['data']['user_quotas'] = quotas
         return self._save_database(db['data'], db['sha'])
 
-    def reset_all_quotas(self):
+    def reset_all_quotas(self) -> bool:
         db = self._get_database()
         if not db:
             return False
