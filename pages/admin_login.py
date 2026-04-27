@@ -11,101 +11,193 @@ st.set_page_config(
     page_title="Admin Login - Kota Magelang",
     page_icon="🔐",
     layout="wide",
+    initial_sidebar_state="collapsed",  # Sembunyikan sidebar di halaman login
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
 init_session_state()
 
-# CSS untuk sidebar dan login form
+# CSS Premium untuk halaman login
 st.markdown("""
 <style>
-    /* Sembunyikan elemen bawaan, TAPI SIDEBAR TETAP MUNCUL */
+    /* Hapus semua margin dan padding */
+    .main > div {
+        padding: 0 !important;
+    }
+    
+    /* Sembunyikan semua elemen bawaan */
     header { display: none !important; }
     .stApp header { display: none !important; }
     [data-testid="stToolbar"] { display: none !important; }
     footer { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
-    .main > div { padding-top: 0rem; }
     
-    /* Pastikan sidebar tetap terlihat dan cantik */
-    [data-testid="stSidebar"] { 
-        display: block !important;
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.1);
-        color: white;
-        border: 1px solid rgba(255,255,255,0.2);
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.2);
+    /* Background gradient yang cantik */
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
     
-    /* Styling login box */
-    .login-container {
+    /* Container utama */
+    .login-wrapper {
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 80vh;
+        min-height: 100vh;
+        padding: 1rem;
     }
-    .login-box {
+    
+    /* Card login */
+    .login-card {
+        background: white;
+        border-radius: 32px;
+        padding: 2.5rem;
         max-width: 450px;
         width: 100%;
-        padding: 2.5rem;
-        background: white;
-        border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        animation: fadeInUp 0.6s ease-out;
     }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Icon */
     .login-icon {
         text-align: center;
         font-size: 4rem;
         margin-bottom: 1rem;
     }
+    
+    /* Title */
     .login-title {
         text-align: center;
+        font-size: 1.8rem;
+        font-weight: 700;
         color: #1a1a2e;
         margin-bottom: 0.5rem;
-        font-size: 1.8rem;
     }
+    
+    /* Subtitle */
     .login-subtitle {
         text-align: center;
         color: #666;
-        margin-bottom: 2rem;
         font-size: 0.9rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Decorative line */
+    .decorative-line {
+        width: 60px;
+        height: 4px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        margin: 1rem auto;
+        border-radius: 2px;
+    }
+    
+    /* Custom input styling */
+    .stTextInput > div > div > input {
+        border-radius: 12px !important;
+        border: 1px solid #e0e0e0 !important;
+        padding: 12px 16px !important;
+        font-size: 1rem !important;
+        transition: all 0.3s !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2) !important;
+    }
+    
+    /* Custom button */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 12px !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.3s !important;
+        cursor: pointer !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -10px rgba(102, 126, 234, 0.5);
+    }
+    
+    /* Back button */
+    .back-button {
+        text-align: center;
+        margin-top: 1.5rem;
+    }
+    
+    .back-button button {
+        background: transparent !important;
+        color: #667eea !important;
+        box-shadow: none !important;
+    }
+    
+    .back-button button:hover {
+        background: rgba(102, 126, 234, 0.1) !important;
+        transform: none !important;
+    }
+    
+    /* Demo info */
+    .demo-info {
+        text-align: center;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    /* Alert styling */
+    .stAlert {
+        border-radius: 12px !important;
+        margin-top: 1rem !important;
+    }
+    
+    /* Hide default Streamlit elements */
+    div[data-testid="stDecoration"] {
+        display: none;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# SIDEBAR - Tetap muncul di halaman login
-with st.sidebar:
-    st.image("https://via.placeholder.com/200x80/667eea/white?text=Kota+Magelang", use_container_width=True)
-    st.markdown("### 🔐 Admin Area")
-    st.markdown("Sistem Aspirasi & Polling")
-    st.markdown("---")
-    st.markdown("**Informasi:**")
-    st.markdown("- Login untuk mengakses panel admin")
-    st.markdown("- Kelola soal polling")
-    st.markdown("- Lihat data partisipasi")
-    st.markdown("- Kelola NIK terdaftar")
-    st.markdown("---")
-    st.caption("© 2024 Kota Magelang")
+# Container utama
+st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+st.markdown('<div class="login-card">', unsafe_allow_html=True)
 
-# Main content - Login Form
-st.markdown('<div class="login-container">', unsafe_allow_html=True)
-st.markdown('<div class="login-box">', unsafe_allow_html=True)
+# Icon
+st.markdown("""
+<div class="login-icon">
+    🏙️
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown('<div class="login-icon">🔐</div>', unsafe_allow_html=True)
-st.markdown('<h2 class="login-title">Admin Login</h2>', unsafe_allow_html=True)
-st.markdown('<p class="login-subtitle">Masukkan kredensial Anda untuk mengakses panel admin</p>', unsafe_allow_html=True)
+# Title
+st.markdown("""
+<h1 class="login-title">Admin Login</h1>
+<div class="decorative-line"></div>
+<p class="login-subtitle">Sistem Aspirasi & Polling<br>Kota Magelang</p>
+""", unsafe_allow_html=True)
 
-username = st.text_input("Username", key="admin_user", placeholder="admin")
-password = st.text_input("Password", type="password", key="admin_pass", placeholder="••••••")
+# Form login
+username = st.text_input("Username", placeholder="admin", key="admin_user")
+password = st.text_input("Password", type="password", placeholder="••••••", key="admin_pass")
 
-col1, col2, col3 = st.columns([1,2,1])
+# Tombol Login
+col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     if st.button("Login", use_container_width=True, type="primary"):
         if login(username, password):
@@ -113,14 +205,18 @@ with col2:
         else:
             st.error("❌ Username atau password salah!")
 
-st.markdown("---")
-st.markdown('<p style="text-align: center; color: #999; font-size: 0.8rem;">Demo: admin / admin123</p>', unsafe_allow_html=True)
+# Demo info
+st.markdown("""
+<div class="demo-info">
+    🔐 Demo: <strong>admin</strong> / <strong>admin123</strong>
+</div>
+""", unsafe_allow_html=True)
 
-# Tombol kembali ke halaman user
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    if st.button("← Kembali ke Halaman User", use_container_width=True):
-        st.switch_page("app.py")
+# Tombol kembali
+st.markdown('<div class="back-button">', unsafe_allow_html=True)
+if st.button("← Kembali ke Halaman User", use_container_width=True):
+    st.switch_page("app.py")
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
