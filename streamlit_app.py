@@ -8,5 +8,5 @@ st.set_page_config(
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
-# Redirect langsung ke halaman user
+# Langsung arahkan ke halaman user
 st.switch_page("pages/user.py")

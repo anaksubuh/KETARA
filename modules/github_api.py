@@ -11,6 +11,7 @@ class GitHubAPI:
             self.token = st.secrets.get("GITHUB_TOKEN", "")
             self.repo = st.secrets.get("GITHUB_REPO", "")
         except:
+            # Fallback untuk local testing - GANTI DENGAN DATA ANDA
             self.token = "YOUR_GITHUB_TOKEN_HERE"
             self.repo = "YOUR_USERNAME/YOUR_REPO_NAME"
         
@@ -31,18 +32,24 @@ class GitHubAPI:
         }
         for file_path, default_data in files.items():
             url = f"{self.base_url}/{file_path}"
-            resp = requests.get(url, headers=self.headers)
-            if resp.status_code == 404:
-                content = base64.b64encode(json.dumps(default_data, indent=2).encode()).decode()
-                requests.put(url, headers=self.headers, json={'message': 'Init', 'content': content})
+            try:
+                resp = requests.get(url, headers=self.headers)
+                if resp.status_code == 404:
+                    content = base64.b64encode(json.dumps(default_data, indent=2).encode()).decode()
+                    requests.put(url, headers=self.headers, json={'message': 'Init', 'content': content})
+            except:
+                pass
     
     def _get_file(self, path):
         url = f"{self.base_url}/{path}"
-        resp = requests.get(url, headers=self.headers)
-        if resp.status_code == 200:
-            data = resp.json()
-            content = base64.b64decode(data['content']).decode()
-            return {'data': json.loads(content), 'sha': data.get('sha')}
+        try:
+            resp = requests.get(url, headers=self.headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                content = base64.b64decode(data['content']).decode()
+                return {'data': json.loads(content), 'sha': data.get('sha')}
+        except:
+            pass
         return {'data': None, 'sha': None}
     
     def _save_file(self, path, data, sha=None):
@@ -51,8 +58,11 @@ class GitHubAPI:
         payload = {'message': f'Update {path}', 'content': content}
         if sha:
             payload['sha'] = sha
-        resp = requests.put(url, headers=self.headers, json=payload)
-        return resp.status_code in [200, 201]
+        try:
+            resp = requests.put(url, headers=self.headers, json=payload)
+            return resp.status_code in [200, 201]
+        except:
+            return False
     
     # ========== SOAL ==========
     def get_all_questions(self) -> List[Dict]:
@@ -79,13 +89,17 @@ class GitHubAPI:
         if not res['data']:
             return False
         questions = res['data']['questions']
+        found = False
         for q in questions:
             if q['id'] == qid:
                 q['question'] = question
                 q['option_left'] = option_left
                 q['option_right'] = option_right
                 q['is_active'] = is_active
+                found = True
                 break
+        if not found:
+            return False
         return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
     
     def update_question_status(self, qid: int, is_active: bool) -> bool:

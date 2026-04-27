@@ -66,7 +66,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<a href="/admin_login" target="_self" class="admin-login-btn">🔐 Admin Login</a>', unsafe_allow_html=True)
+st.markdown('<a href="admin_login" target="_self" class="admin-login-btn">🔐 Admin Login</a>', unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero-user">
@@ -75,7 +75,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Inisialisasi session
+# Inisialisasi session state
 if 'nik' not in st.session_state:
     st.session_state.nik = None
 if 'submitted' not in st.session_state:
@@ -104,7 +104,7 @@ with col2:
         quota = github.get_user_quota(st.session_state.nik)
         st.info(f"👤 NIK: {st.session_state.nik}")
         if quota['can_submit']:
-            st.success(f"📊 Sisa kuota: {quota['remaining']} dari {quota['max']} kali/tahun")
+            st.success(f"📊 Sisa kuota tahun ini: {quota['remaining']} dari {quota['max']} kali")
         else:
             st.error(f"⚠️ Kuota habis! Sudah {quota['used']} dari {quota['max']} kali.")
         if st.button("🔄 Ganti NIK", use_container_width=True):
@@ -118,15 +118,15 @@ if st.session_state.nik and not st.session_state.submitted:
         questions = github.get_all_questions()
         active_questions = [q for q in questions if q.get('is_active', True)]
         if not active_questions:
-            st.warning("Belum ada polling aktif.")
+            st.warning("Belum ada polling yang tersedia saat ini.")
         else:
             with st.form("polling_form"):
                 responses = []
                 for q in active_questions:
                     st.markdown(f'<div class="polling-card"><div class="polling-question">{q["question"]}</div></div>', unsafe_allow_html=True)
-                    # Radio button dengan opsi kiri dan kanan
+                    # Radio horizontal dengan dua opsi
                     answer = st.radio(
-                        label="Pilih jawaban",
+                        label=f"Pilih jawaban untuk: {q['question']}",
                         options=[q['option_left'], q['option_right']],
                         key=f"q_{q['id']}",
                         index=None,
@@ -139,10 +139,8 @@ if st.session_state.nik and not st.session_state.submitted:
                         'answer': answer,
                         'value': 'setuju' if answer == q['option_left'] else ('tidak_setuju' if answer == q['option_right'] else None)
                     })
-                
                 st.markdown("---")
-                aspirasi = st.text_area("💬 Aspirasi / Saran / Masukan", height=120, placeholder="Contoh: Mohon perbaikan jalan ...")
-                
+                aspirasi = st.text_area("💬 Aspirasi / Saran / Masukan", height=120, placeholder="Contoh: Mohon perbaikan infrastruktur jalan ...")
                 submitted = st.form_submit_button("📤 Kirim Partisipasi", type="primary", use_container_width=True)
                 if submitted:
                     all_answered = all(r['answer'] is not None for r in responses)
@@ -151,17 +149,16 @@ if st.session_state.nik and not st.session_state.submitted:
                     elif len(aspirasi.strip()) < 5:
                         st.error("❌ Aspirasi minimal 5 karakter.")
                     else:
-                        # Simpan dengan aspirasi
                         success = github.save_response(st.session_state.nik, responses, aspirasi)
                         if success:
                             st.session_state.submitted = True
                             st.balloons()
-                            st.success("✅ Terima kasih! Partisipasi Anda tersimpan.")
+                            st.success("✅ Terima kasih! Partisipasi Anda telah tersimpan.")
                             st.rerun()
                         else:
-                            st.error("❌ Gagal menyimpan, coba lagi.")
+                            st.error("❌ Gagal menyimpan data. Silakan coba lagi.")
     else:
-        st.error("⚠️ Kuota partisipasi Anda sudah habis untuk tahun ini.")
+        st.error("⚠️ Maaf, kuota Anda sudah habis untuk tahun ini.")
 
 elif st.session_state.submitted:
     st.markdown("---")
@@ -172,4 +169,4 @@ elif st.session_state.submitted:
         st.rerun()
 
 st.markdown("---")
-st.caption("© 2025 Sistem Aspirasi & Polling - Kota Magelang")
+st.caption(f"© 2025 Sistem Aspirasi & Polling - Kota Magelang")
