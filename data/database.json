@@ -1,5 +1,14 @@
 {
-  "questions": [],
+  "questions": [
+    {
+      "id": 1,
+      "question": "Kebijakan Kenaikan Pajak Rokok dan Vape\n\nKebijakan ini bertujuan untuk menekan konsumsi rokok dan vape yang masih tinggi, khususnya pada kelompok usia produktif, serta mengurangi beban kesehatan masyarakat. Pemerintah mengusulkan kenaikan pajak rokok dari 40% menjadi 55% dan pajak vape dari 30% menjadi 50%, disertai peningkatan harga minimum produk tembakau sebesar 20%.\n\nSecara konseptual, kebijakan ini didasarkan pada prinsip bahwa kenaikan harga dapat menurunkan tingkat konsumsi (price mechanism), terutama pada kelompok rentan seperti remaja. Selain itu, kebijakan ini juga diarahkan untuk meningkatkan penerimaan negara, di mana 30% dari tambahan pajak dialokasikan untuk layanan kesehatan dan program edukasi anti-rokok.\n",
+      "option_left": "\u2705 Setuju",
+      "option_right": "\u274c Tidak Setuju",
+      "is_active": true,
+      "created_at": "2026-04-27T12:00:44.446708"
+    }
+  ],
   "responses": [],
   "valid_niks": [],
   "quota_config": {
