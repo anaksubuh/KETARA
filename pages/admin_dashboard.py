@@ -23,7 +23,6 @@ st.markdown("""
     .stApp header { display: none !important; }
     [data-testid="stToolbar"] { display: none !important; }
     footer { display: none !important; }
-    [data-testid="stSidebarNav"] { display: none !important; }
     .stAppDeployButton { display: none !important; }
     .main > div { padding-top: 0rem; }
     
