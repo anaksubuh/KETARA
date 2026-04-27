@@ -11,8 +11,16 @@ class GitHubAPI:
             self.token = st.secrets.get("GITHUB_TOKEN", "")
             self.repo = st.secrets.get("GITHUB_REPO", "")
         except:
-            self.token = "YOUR_GITHUB_TOKEN_HERE"
-            self.repo = "YOUR_USERNAME/YOUR_REPO_NAME"
+            self.token = ""
+            self.repo = ""
+        
+        # Validasi token dan repo
+        if not self.token or not self.repo:
+            st.error("❌ GitHub token atau repository tidak dikonfigurasi di secrets.toml")
+            self.valid = False
+            return
+        else:
+            self.valid = True
         
         self.base_url = f"https://api.github.com/repos/{self.repo}/contents"
         self.headers = {
@@ -22,6 +30,8 @@ class GitHubAPI:
         self._init_data_files()
     
     def _init_data_files(self):
+        if not self.valid:
+            return
         files = {
             "data/questions.json": {"questions": []},
             "data/responses.json": {"responses": []},
@@ -31,28 +41,52 @@ class GitHubAPI:
         }
         for file_path, default_data in files.items():
             url = f"{self.base_url}/{file_path}"
-            resp = requests.get(url, headers=self.headers)
-            if resp.status_code == 404:
-                content = base64.b64encode(json.dumps(default_data, indent=2).encode()).decode()
-                requests.put(url, headers=self.headers, json={'message': 'Init', 'content': content})
+            try:
+                resp = requests.get(url, headers=self.headers)
+                if resp.status_code == 404:
+                    content = base64.b64encode(json.dumps(default_data, indent=2).encode()).decode()
+                    put_resp = requests.put(url, headers=self.headers, json={'message': 'Init', 'content': content})
+                    if put_resp.status_code not in [200, 201]:
+                        st.warning(f"Gagal inisialisasi {file_path}: {put_resp.status_code}")
+            except Exception as e:
+                st.warning(f"Error init {file_path}: {e}")
     
     def _get_file(self, path):
+        if not self.valid:
+            return {'data': None, 'sha': None}
         url = f"{self.base_url}/{path}"
-        resp = requests.get(url, headers=self.headers)
-        if resp.status_code == 200:
-            data = resp.json()
-            content = base64.b64decode(data['content']).decode()
-            return {'data': json.loads(content), 'sha': data.get('sha')}
-        return {'data': None, 'sha': None}
+        try:
+            resp = requests.get(url, headers=self.headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                content = base64.b64decode(data['content']).decode()
+                return {'data': json.loads(content), 'sha': data.get('sha')}
+            else:
+                st.error(f"Gagal baca file {path}: {resp.status_code} - {resp.text[:100]}")
+                return {'data': None, 'sha': None}
+        except Exception as e:
+            st.error(f"Error membaca {path}: {e}")
+            return {'data': None, 'sha': None}
     
     def _save_file(self, path, data, sha=None):
+        if not self.valid:
+            st.error("GitHub tidak terkonfigurasi dengan benar.")
+            return False
         url = f"{self.base_url}/{path}"
         content = base64.b64encode(json.dumps(data, indent=2).encode()).decode()
         payload = {'message': f'Update {path}', 'content': content}
         if sha:
             payload['sha'] = sha
-        resp = requests.put(url, headers=self.headers, json=payload)
-        return resp.status_code in [200, 201]
+        try:
+            resp = requests.put(url, headers=self.headers, json=payload)
+            if resp.status_code in [200, 201]:
+                return True
+            else:
+                st.error(f"Gagal simpan {path}: {resp.status_code} - {resp.text[:200]}")
+                return False
+        except Exception as e:
+            st.error(f"Error menyimpan {path}: {e}")
+            return False
     
     # ========== SOAL ==========
     def get_all_questions(self) -> List[Dict]:
@@ -61,7 +95,10 @@ class GitHubAPI:
     
     def add_question(self, question: str, option_left: str, option_right: str, is_active: bool = True) -> bool:
         res = self._get_file("data/questions.json")
-        questions = res['data'].get('questions', []) if res['data'] else []
+        if res['data'] is None:
+            st.error("Tidak dapat membaca file questions.json dari GitHub. Periksa token dan repo.")
+            return False
+        questions = res['data'].get('questions', [])
         new_id = max([q.get('id', 0) for q in questions], default=0) + 1
         new_q = {
             'id': new_id,
@@ -72,20 +109,30 @@ class GitHubAPI:
             'created_at': datetime.now().isoformat()
         }
         questions.append(new_q)
-        return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
+        success = self._save_file("data/questions.json", {"questions": questions}, res['sha'])
+        if success:
+            st.success(f"Soal berhasil ditambahkan dengan ID {new_id}")
+        else:
+            st.error("Gagal menyimpan soal ke GitHub. Periksa koneksi dan token.")
+        return success
     
     def update_question(self, qid: int, question: str, option_left: str, option_right: str, is_active: bool) -> bool:
         res = self._get_file("data/questions.json")
         if not res['data']:
             return False
         questions = res['data']['questions']
+        found = False
         for q in questions:
             if q['id'] == qid:
                 q['question'] = question
                 q['option_left'] = option_left
                 q['option_right'] = option_right
                 q['is_active'] = is_active
+                found = True
                 break
+        if not found:
+            st.error(f"Soal dengan ID {qid} tidak ditemukan.")
+            return False
         return self._save_file("data/questions.json", {"questions": questions}, res['sha'])
     
     def update_question_status(self, qid: int, is_active: bool) -> bool:
