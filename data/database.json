@@ -1,5 +1,14 @@
 {
-  "questions": [],
+  "questions": [
+    {
+      "id": 1,
+      "question": "crooot",
+      "option_left": "\u2705 Setuju",
+      "option_right": "\u274c Tidak Setuju",
+      "is_active": true,
+      "created_at": "2026-04-27T08:27:26.544705"
+    }
+  ],
   "responses": [],
   "valid_niks": [],
   "quota_config": {
