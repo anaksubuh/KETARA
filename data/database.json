@@ -45,5 +45,10 @@
     "max_per_year": 10,
     "updated_at": "2026-04-27T06:46:32.517060"
   },
-  "user_quotas": {}
+  "user_quotas": {
+    "1111111111111111": {
+      "used": 1,
+      "last_reset": 2026
+    }
+  }
 }
