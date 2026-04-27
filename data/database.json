@@ -18,7 +18,9 @@
     }
   ],
   "responses": [],
-  "valid_niks": [],
+  "valid_niks": [
+    "1111111111111111"
+  ],
   "quota_config": {
     "max_per_year": 10,
     "updated_at": "2026-04-27T06:46:32.517060"
