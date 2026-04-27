@@ -17,7 +17,7 @@ from modules.auth_simple import init_session_state, require_auth, logout, get_re
 init_session_state()
 require_auth()
 
-# CSS SIDEBAR
+# CSS untuk sidebar dan tampilan admin
 st.markdown("""
 <style>
     header { display: none !important; }
@@ -40,10 +40,13 @@ st.markdown("""
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
     }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background: rgba(255,255,255,0.2);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# SIDEBAR
+# ==================== SIDEBAR ====================
 with st.sidebar:
     st.markdown("""
     <div style="text-align: center; padding: 1rem;">
@@ -75,14 +78,15 @@ with st.sidebar:
         logout()
         st.rerun()
 
-# MAIN CONTENT
+# ==================== MAIN CONTENT ====================
 st.title("📝 Kelola Soal Polling")
-st.markdown("Buat, edit, dan atur status soal polling untuk warga Kota Magelang")
+st.markdown("Buat, edit, hapus, dan atur status soal polling untuk warga Kota Magelang.")
 
 github = GitHubAPI()
 
 tab1, tab2 = st.tabs(["📋 Daftar Soal", "➕ Tambah Soal Baru"])
 
+# ========== TAB 1: DAFTAR SOAL ==========
 with tab1:
     questions = github.get_all_questions()
     
@@ -90,7 +94,7 @@ with tab1:
         st.info("Belum ada soal. Silakan tambah soal baru di tab 'Tambah Soal Baru'")
     else:
         for q in questions:
-            col1, col2, col3 = st.columns([6, 1, 1])
+            col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
             with col1:
                 status = "🟢 Aktif" if q.get('is_active', True) else "🔴 Nonaktif"
                 st.markdown(f"""
@@ -99,33 +103,86 @@ with tab1:
                 🏷️ Status: {status}
                 """)
             with col2:
-                new_status = not q.get('is_active', True)
-                status_text = "Aktifkan" if new_status else "Nonaktifkan"
-                if st.button(f"{status_text}", key=f"toggle_{q['id']}"):
-                    github.update_question_status(q['id'], new_status)
+                if st.button("✏️ Edit", key=f"edit_{q['id']}"):
+                    st.session_state.edit_qid = q['id']
                     st.rerun()
             with col3:
-                if st.button(f"🗑️ Hapus", key=f"delete_{q['id']}"):
+                new_status = not q.get('is_active', True)
+                status_text = "Aktifkan" if new_status else "Nonaktifkan"
+                if st.button(status_text, key=f"toggle_{q['id']}"):
+                    if github.update_question_status(q['id'], new_status):
+                        st.success(f"Soal berhasil {status_text.lower()}!")
+                        st.rerun()
+                    else:
+                        st.error("Gagal mengubah status.")
+            with col4:
+                if st.button("🗑️ Hapus", key=f"delete_{q['id']}"):
                     if github.delete_question(q['id']):
                         st.success("Soal berhasil dihapus!")
                         st.rerun()
+                    else:
+                        st.error("Gagal menghapus soal.")
             st.markdown("---")
+        
+        # Form Edit Soal (muncul jika tombol Edit ditekan)
+        if 'edit_qid' in st.session_state:
+            qid = st.session_state.edit_qid
+            # Ambil data soal yang akan diedit
+            all_q = github.get_all_questions()
+            q_to_edit = next((q for q in all_q if q['id'] == qid), None)
+            
+            if q_to_edit:
+                st.markdown("---")
+                st.subheader(f"✏️ Edit Soal ID: {qid}")
+                with st.form("edit_question_form"):
+                    edited_question = st.text_area("Pertanyaan", value=q_to_edit['question'])
+                    col_left, col_right = st.columns(2)
+                    with col_left:
+                        edited_option_left = st.text_input("Opsi Kiri (Setuju)", value=q_to_edit['option_left'])
+                    with col_right:
+                        edited_option_right = st.text_input("Opsi Kanan (Tidak Setuju)", value=q_to_edit['option_right'])
+                    edited_is_active = st.checkbox("Aktif", value=q_to_edit.get('is_active', True))
+                    
+                    if st.form_submit_button("💾 Simpan Perubahan", use_container_width=True, type="primary"):
+                        if not edited_question:
+                            st.error("Pertanyaan harus diisi!")
+                        elif not edited_option_left or not edited_option_right:
+                            st.error("Kedua opsi harus diisi!")
+                        else:
+                            success = github.update_question(
+                                qid, edited_question, edited_option_left, 
+                                edited_option_right, edited_is_active
+                            )
+                            if success:
+                                st.success("Soal berhasil diperbarui!")
+                                del st.session_state.edit_qid
+                                st.rerun()
+                            else:
+                                st.error("Gagal memperbarui soal. Coba lagi.")
+                
+                if st.button("❌ Batal Edit", use_container_width=True):
+                    del st.session_state.edit_qid
+                    st.rerun()
 
+# ========== TAB 2: TAMBAH SOAL BARU ==========
 with tab2:
     with st.form("add_question_form"):
         st.subheader("Form Tambah Soal Baru")
         
-        question_text = st.text_area("Soal / Pertanyaan", placeholder="Contoh: Apakah Anda setuju dengan pembangunan taman kota?")
+        question_text = st.text_area(
+            "Soal / Pertanyaan", 
+            placeholder="Contoh: Apakah Anda setuju dengan pembangunan taman kota baru?"
+        )
         
         col1, col2 = st.columns(2)
         with col1:
-            option_left = st.text_input("Opsi Kiri (Setuju)", placeholder="Setuju")
+            option_left = st.text_input("Opsi Kiri (Setuju)", value="✅ Setuju", placeholder="Setuju")
         with col2:
-            option_right = st.text_input("Opsi Kanan (Tidak Setuju)", placeholder="Tidak Setuju")
+            option_right = st.text_input("Opsi Kanan (Tidak Setuju)", value="❌ Tidak Setuju", placeholder="Tidak Setuju")
         
         is_active = st.checkbox("Aktifkan soal ini sekarang", value=True)
         
-        if st.form_submit_button("Simpan Soal", use_container_width=True, type="primary"):
+        if st.form_submit_button("➕ Simpan Soal", use_container_width=True, type="primary"):
             if not question_text:
                 st.error("Soal harus diisi!")
             elif not option_left or not option_right:
@@ -136,4 +193,4 @@ with tab2:
                     st.success("Soal berhasil ditambahkan!")
                     st.rerun()
                 else:
-                    st.error("Gagal menambahkan soal!")
+                    st.error("Gagal menambahkan soal. Periksa koneksi atau konfigurasi GitHub.")
